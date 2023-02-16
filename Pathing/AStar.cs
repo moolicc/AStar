@@ -80,7 +80,46 @@ namespace Pathing
         {
             CurrentState.Expanded.Add(CurrentState.Next!);
             CurrentState.Children = SearchTree.ExpandNode(CurrentState.Next!.NodeId);
-            CurrentState.PriorityQueue.EnqueueRange(CurrentState.Children.Where(n => !n.Visited).Select(c => (c, c.TotalCost)));
+
+
+            foreach (var child in CurrentState.Children)
+            {
+                bool continueUpper = false;
+                bool exists = false;
+                foreach (var item in CurrentState.PriorityQueue.UnorderedItems)
+                {
+                    if (item.Element.Data!.Equals(child.Data))
+                    {
+                        if(item.Priority >= child.TotalCost)
+                        {
+                            continueUpper = true;
+                        }
+                        exists = true;
+                        break;
+                    }
+                }
+                if (continueUpper) continue;
+
+                // If the item already exists in the PQ and has a lower priority than our new item, then remove it.
+                if(exists)
+                {
+                    var collection = CurrentState.PriorityQueue.UnorderedItems.ToArray();
+                    CurrentState.PriorityQueue.Clear();
+                    foreach (var item in collection)
+                    {
+                        if (!item.Element.Data!.Equals(child.Data))
+                        {
+                            CurrentState.PriorityQueue.Enqueue(item.Element, item.Priority);
+                        }
+                    }
+                }
+
+                CurrentState.PriorityQueue.Enqueue(child, child.TotalCost);
+            }
+
+
+            //CurrentState.PriorityQueue.EnqueueRange(CurrentState.Children.Where(n => !n.Visited).Select(c => (c, c.TotalCost)));
+
 
             _currentStepState = StepStates.TakeNext;
         }

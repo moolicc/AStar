@@ -43,28 +43,28 @@
             {
                 if (_tiles[referenceTile.X - 1][referenceTile.Y].Passable)
                 {
-                    yield return (_tiles[referenceTile.X - 1][referenceTile.Y], 1);
+                    yield return (_tiles[referenceTile.X - 1][referenceTile.Y], 4);
                 }
             }
             if (referenceTile.Y > 0)
             {
                 if (_tiles[referenceTile.X][referenceTile.Y - 1].Passable)
                 {
-                    yield return (_tiles[referenceTile.X][referenceTile.Y - 1], 1);
+                    yield return (_tiles[referenceTile.X][referenceTile.Y - 1], 3);
                 }
             }
             if (referenceTile.X + 1 < Width)
             {
                 if (_tiles[referenceTile.X + 1][referenceTile.Y].Passable)
                 {
-                    yield return (_tiles[referenceTile.X + 1][referenceTile.Y], 1);
+                    yield return (_tiles[referenceTile.X + 1][referenceTile.Y], 4);
                 }
             }
             if (referenceTile.Y + 1 < Height)
             {
                 if (_tiles[referenceTile.X][referenceTile.Y + 1].Passable)
                 {
-                    yield return (_tiles[referenceTile.X][referenceTile.Y + 1], 1);
+                    yield return (_tiles[referenceTile.X][referenceTile.Y + 1], 3);
                 }
             }
         }

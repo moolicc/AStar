@@ -18,6 +18,8 @@
 
 <textarea readonly rows="6">@TileInformation</textarea>
 
+<label>@Queue</label>
+
 
 @code {
     private const int TILE_SIZE = 24;
@@ -36,6 +38,7 @@
     private const string STYLE_EXPANDED = "darkgoldenrod";
 
     public string TileInformation { get; set; } = "";
+    public string Queue { get; set; } = "";
 
 
     private Canvas2DContext _context;
@@ -110,10 +113,13 @@
             _map.GetTileAt(nextTile.Value.X, nextTile.Value.Y).IsNext = true;
         }
 
+        Queue = "";
         foreach (var frontierItem in _aStar.CurrentState.PriorityQueue.UnorderedItems)
         {
             var tile = frontierItem.Element.Data;
             _map.GetTileAt(tile.X, tile.Y).OnFrontier = true;
+
+            Queue += $" ({frontierItem.Element.Data.X}, {frontierItem.Element.Data.Y}) ";
         }
 
         foreach (var expandedItem in _aStar.CurrentState.Expanded)

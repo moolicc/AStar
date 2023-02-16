@@ -48,7 +48,6 @@ namespace Pathing
             for (int i = 0; i < paths.Length; i++)
             {
                 var childPath = paths[i];
-
                 var treeNode = FindNode(childPath.Neighbor) ?? CreateNode(childPath.Neighbor);
                 var edge = new TreeEdge(nodeId, treeNode.NodeId, childPath.Cost);
 
