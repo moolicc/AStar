@@ -80,7 +80,7 @@ namespace Pathing
         {
             CurrentState.Expanded.Add(CurrentState.Next!);
             CurrentState.Children = SearchTree.ExpandNode(CurrentState.Next!.NodeId);
-            CurrentState.PriorityQueue.EnqueueRange(CurrentState.Children.Select(c => (c, c.TotalCost)));
+            CurrentState.PriorityQueue.EnqueueRange(CurrentState.Children.Where(n => !n.Visited).Select(c => (c, c.TotalCost)));
 
             _currentStepState = StepStates.TakeNext;
         }

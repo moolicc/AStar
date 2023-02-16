@@ -13,6 +13,8 @@ namespace Pathing
         public TreeNode<TNodeData> StartNode => _startNode;
         public TreeNode<TNodeData> GoalNode => _goalNode;
 
+        public IEnumerable<TreeNode<TNodeData>> Nodes => _nodes;
+
         private List<TreeNode<TNodeData>> _nodes;
         private TreeNode<TNodeData> _startNode;
         private TreeNode<TNodeData> _goalNode;
