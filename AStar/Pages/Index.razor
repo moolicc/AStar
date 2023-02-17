@@ -49,13 +49,13 @@
             <div class="row">
                 <div class="col">
                     <button class="btn btn-outline-primary" @onclick="OnResetClicked">Reset</button>
-                    <button class="btn btn-outline-primary" @onclick="OnSetStartClicked">Set Start</button>
-                    <button class="btn btn-outline-primary" @onclick="OnSetGoalClicked">Set Goal</button>
+                    <button class="btn btn-outline-primary" @onclick="OnSetStartClicked" disabled="@Running">Set Start</button>
+                    <button class="btn btn-outline-primary" @onclick="OnSetGoalClicked" disabled="@Running">Set Goal</button>
                 </div>
             </div>
             <div class="row mt-1">
                 <div class="col-auto pe-0">
-                    <select class="form-select">
+                    <select class="form-select" disabled="@Running">
                         <option>A*</option>
                         <option>GBFS</option>
                     </select>
@@ -70,7 +70,7 @@
                     <label class="form-label">Horizontal movement cost:</label>
                 </div>
                 <div class="col-auto">
-                    <input class="form-control" type="number" />
+                    <input class="form-control" type="number" disabled="@Running" @bind="HorizontalCost" />
                 </div>
             </div>
             <div class="row mt-1">
@@ -78,7 +78,7 @@
                     <label class="form-label">Vertical movement cost:&nbsp;&nbsp;&nbsp;&nbsp;</label>
                 </div>
                 <div class="col-auto">
-                    <input class="form-control" type="number" />
+                    <input class="form-control" type="number" disabled="@Running" @bind="VerticalCost" />
                 </div>
             </div>
         </div>
@@ -131,6 +131,9 @@
         get => _aStar != null && _aStar.GoalReached;
         set { }
     }
+    public bool Running { get; set; } = false;
+    public int HorizontalCost { get; set; } = 4;
+    public int VerticalCost { get; set; } = 3;
     public string JSHeuristicFunction { get; set; } =
     """"
     Math.abs(refTile.X - goalTile.X) + Math.abs(refTile.Y - goalTile.Y);
@@ -152,18 +155,21 @@
     private StringBuilder _informationBuilder = new StringBuilder();
 
 
-    private void OnRunClicked()
+    private Task OnRunClicked()
     {
+        Running = true;
         RecreateAStar();
 
         while (_aStar != null && !_aStar.GoalReached)
         {
             StepAStar();
         }
+        return Task.CompletedTask;
     }
 
     private void OnStepClicked()
     {
+        Running = true;
         RecreateAStar();
         StepAStar();
     }
@@ -183,7 +189,7 @@
                 return 0;
                 //return result;
             });
-            _aStar = new Pathing.AStar<World.Tile>(_map.Heuristic, _map.ExpandTile, _map.GetTileAt(_start.x, _start.y), _map.GetTileAt(_goal.x, _goal.y));
+            _aStar = new Pathing.AStar<World.Tile>(_map.Heuristic, t => _map.ExpandTile(t, HorizontalCost, VerticalCost), _map.GetTileAt(_start.x, _start.y), _map.GetTileAt(_goal.x, _goal.y));
         }
     }
 
@@ -257,7 +263,7 @@
         StateHasChanged();
     }
 
-    private void OnResetClicked()
+    private async Task OnResetClicked()
     {
         _start = (-1, -1);
         _goal = (-1, -1);
@@ -266,19 +272,24 @@
         Status = "";
         _moveCount = 0;
 
-        for (int x = 0; x < _map.Width; x++)
+
+        await Task.Run(() =>
         {
-            for (int y = 0; y < _map.Height; y++)
+            for (int x = 0; x < _map.Width; x++)
             {
-                _map.GetTileAt(x, y).OnFrontier = false;
-                _map.GetTileAt(x, y).IsExpanded = false;
-                _map.GetTileAt(x, y).IsNext = false;
-                _map.GetTileAt(x, y).TotalCost = 0;
-                _map.GetTileAt(x, y).HeuristicCost = 0;
+                for (int y = 0; y < _map.Height; y++)
+                {
+                    _map.GetTileAt(x, y).OnFrontier = false;
+                    _map.GetTileAt(x, y).IsExpanded = false;
+                    _map.GetTileAt(x, y).IsNext = false;
+                    _map.GetTileAt(x, y).TotalCost = 0;
+                    _map.GetTileAt(x, y).HeuristicCost = 0;
+                }
             }
-        }
+        });
 
         _aStar = null;
+        Running = false;
     }
 
     private void OnSetStartClicked()
@@ -319,8 +330,9 @@
         _aStar = null;
     }
 
-    private void OnTileHovered(MouseEventArgs e)
+    private async Task OnTileHovered(MouseEventArgs e)
     {
+
         int x = (int)(e.OffsetX / TILE_SIZE);
         int y = (int)(e.OffsetY / TILE_SIZE);
 
@@ -329,17 +341,21 @@
             return;
         }
 
+        await Task.Yield();
+
         var tile = _map.GetTileAt(x, y);
         _informationBuilder.Clear();
         _informationBuilder.AppendLine($"Tile @ ({x}, {y})");
         _informationBuilder.AppendLine($"Cost (f(n)): {tile.TotalCost}");
         _informationBuilder.AppendLine($"Heuristic (h(n)): {tile.HeuristicCost}");
 
+        await Task.Yield();
+
         if (tile.IsNext)
         {
             _informationBuilder.AppendLine($"Up next");
         }
-        else if(tile.IsExpanded)
+        else if (tile.IsExpanded)
         {
             _informationBuilder.AppendLine($"Expanded");
         }
@@ -348,6 +364,7 @@
             _informationBuilder.AppendLine($"On frontier");
         }
 
+        await Task.Yield();
         TileInformation = _informationBuilder.ToString();
     }
 
