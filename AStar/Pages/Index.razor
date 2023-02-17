@@ -332,7 +332,6 @@
 
     private async Task OnTileHovered(MouseEventArgs e)
     {
-
         int x = (int)(e.OffsetX / TILE_SIZE);
         int y = (int)(e.OffsetY / TILE_SIZE);
 
@@ -341,7 +340,6 @@
             return;
         }
 
-        await Task.Yield();
 
         var tile = _map.GetTileAt(x, y);
         _informationBuilder.Clear();
@@ -349,7 +347,6 @@
         _informationBuilder.AppendLine($"Cost (f(n)): {tile.TotalCost}");
         _informationBuilder.AppendLine($"Heuristic (h(n)): {tile.HeuristicCost}");
 
-        await Task.Yield();
 
         if (tile.IsNext)
         {
@@ -364,7 +361,6 @@
             _informationBuilder.AppendLine($"On frontier");
         }
 
-        await Task.Yield();
         TileInformation = _informationBuilder.ToString();
     }
 
