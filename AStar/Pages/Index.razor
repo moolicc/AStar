@@ -143,7 +143,7 @@
                 return 0;
                 //return result;
             });
-            _aStar = new Pathing.AStar<World.Tile>(heuristic, _map.ExpandTile, _map.GetTileAt(_start.x, _start.y), _map.GetTileAt(_goal.x, _goal.y));
+            _aStar = new Pathing.AStar<World.Tile>(_map.Heuristic, _map.ExpandTile, _map.GetTileAt(_start.x, _start.y), _map.GetTileAt(_goal.x, _goal.y));
         }
     }
 
