@@ -8,6 +8,7 @@ namespace AStar.World
         public int Y { get; set; }
         public bool Passable { get; set; }
         public bool IsExpanded { get; set; }
+        public bool IsHovered { get; set; }
         public bool OnFrontier { get; set; }
         public bool IsNext { get; set; }
         public int TotalCost { get; set; }

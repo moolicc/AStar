@@ -1,29 +1,61 @@
 ﻿@page "/"
 
+@using AStar.World;
 @using Blazor.Extensions
 @using Blazor.Extensions.Canvas
 @using Blazor.Extensions.Canvas.Canvas2D
 @using System.Text;
+@using Pathing;
+@using System.Diagnostics.CodeAnalysis;
 @inject IJSRuntime JsRuntime;
+@using Blazorise
 
-<div @onclick="OnTileClicked" @onmousemove="OnTileHovered">
-    <BECanvas Width="@(MAP_WIDTH * TILE_SIZE)" Height="@(MAP_HEIGHT * TILE_SIZE)" @ref="_canvasReference"></BECanvas>
+
+<Alert Color="Color.Success" @bind-Visible="@GoalReached">
+    <AlertMessage>Goal reached!</AlertMessage>
+    <AlertDescription>The goal has been reached in @_moveCount moves!</AlertDescription>
+</Alert>
+
+<div class="row">
+    <div class="col" style="max-width: @(MAP_WIDTH * TILE_SIZE)px" @onclick="OnTileClicked" @onmousemove="OnTileHovered">
+        <BECanvas Width="@(MAP_WIDTH * TILE_SIZE)" Height="@(MAP_HEIGHT * TILE_SIZE)" @ref="_canvasReference"></BECanvas>
+    </div>
+
+    <div class="overflow-auto col border-start ms-3" style="max-height: @(MAP_HEIGHT * TILE_SIZE)px">
+        @foreach (var queueItem in Queue.OrderBy(n => n.TotalCost))
+        {
+            <span @onmouseenter="() => OnQueueItemEnter(queueItem.Data.X, queueItem.Data.Y)" @onmouseleave="() => OnQueueItemLeave(queueItem.Data.X, queueItem.Data.Y)">
+                <label>(@queueItem.Data.X, @queueItem.Data.Y) f: @queueItem.TotalCost</label>
+                <small>&nbsp;&nbsp;<i>g: @queueItem.PathCost + h: @queueItem.HeuristicCost</i></small>
+            </span>
+            <br />
+        }
+    </div>
 </div>
 
-<button @onclick="OnSetStartClicked">Set Start</button>
-<button @onclick="OnSetGoalClicked">Set Goal</button>
-<button @onclick="OnRunClicked">Run</button>
-<button @onclick="OnStepClicked">Step</button>
-<button @onclick="OnRunClicked">Partial Step</button>
 
-<textarea readonly rows="6">@TileInformation</textarea>
 
-<label>@Queue</label>
+<div class="row">
+    <div class="col">
+        <button class="btn btn-outline-primary" @onclick="OnResetClicked">Reset</button>
+        <button class="btn btn-outline-primary" @onclick="OnSetStartClicked">Set Start</button>
+        <button class="btn btn-outline-primary" @onclick="OnSetGoalClicked">Set Goal</button>
+        <button class="btn btn-outline-primary" @onclick="OnRunClicked">Run</button>
+        <button class="btn btn-outline-primary" @onclick="OnStepClicked">Step</button>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <label>@Status</label>
+        <br />
+        <textarea readonly rows="6">@TileInformation</textarea>
+    </div>
+</div>
 
 
 @code {
     private const int TILE_SIZE = 24;
-
     private const int MAP_WIDTH = 20;
     private const int MAP_HEIGHT = 20;
 
@@ -37,17 +69,29 @@
     private const string STYLE_NEXT = "orange";
     private const string STYLE_EXPANDED = "darkgoldenrod";
 
+    private const string STYLE_HOVERED = "cornflowerblue";
+
+
+    private bool _settingStart;
+    private bool _settingGoal;
+
+
     public string TileInformation { get; set; } = "";
-    public string Queue { get; set; } = "";
+    public List<TreeNode<Tile>> Queue { get; set; } = new List<TreeNode<Tile>>();
+    public string Status { get; set; } = "";
+    public bool GoalReached 
+    {
+        get => _aStar != null && _aStar.GoalReached;
+        set { }
+    }
+
+    private int _moveCount;
 
 
     private Canvas2DContext _context;
     protected BECanvasComponent _canvasReference;
 
     private World.Map _map;
-
-    private bool _settingStart;
-    private bool _settingGoal;
 
     private (int x, int y) _start = (-1, -1);
     private (int x, int y) _goal = (-1, -1);
@@ -83,10 +127,11 @@
 
     private void StepAStar()
     {
-        if(_aStar == null)
+        if(_aStar == null || _aStar.GoalReached)
         {
             return;
         }
+
         var nextTile = _aStar.CurrentState.Next?.Data;
         if(nextTile != null)
         {
@@ -113,13 +158,13 @@
             _map.GetTileAt(nextTile.Value.X, nextTile.Value.Y).IsNext = true;
         }
 
-        Queue = "";
+        Queue.Clear();
         foreach (var frontierItem in _aStar.CurrentState.PriorityQueue.UnorderedItems)
         {
             var tile = frontierItem.Element.Data;
             _map.GetTileAt(tile.X, tile.Y).OnFrontier = true;
 
-            Queue += $" ({frontierItem.Element.Data.X}, {frontierItem.Element.Data.Y}) ";
+            Queue.Add(frontierItem.Element);
         }
 
         foreach (var expandedItem in _aStar.CurrentState.Expanded)
@@ -135,7 +180,39 @@
             _map.GetTileAt(node.Data.X, node.Data.Y).TotalCost = node.TotalCost;
         }
 
+        _moveCount++;
+        if(_aStar.GoalReached)
+        {
+            Status = $"Goal found in {_moveCount} moves!";
+        }
+        else
+        {
+            Status = $"{_moveCount} moves";
+        }
         StateHasChanged();
+    }
+
+    private void OnResetClicked()
+    {
+        _start = (-1, -1);
+        _goal = (-1, -1);
+        TileInformation = "";
+        Queue.Clear();
+        Status = "";
+
+        for (int x = 0; x < _map.Width; x++)
+        {
+            for (int y = 0; y < _map.Height; y++)
+            {
+                _map.GetTileAt(x, y).OnFrontier = false;
+                _map.GetTileAt(x, y).IsExpanded = false;
+                _map.GetTileAt(x, y).IsNext = false;
+                _map.GetTileAt(x, y).TotalCost = 0;
+                _map.GetTileAt(x, y).HeuristicCost = 0;
+            }
+        }
+
+        _aStar = null;
     }
 
     private void OnSetStartClicked()
@@ -178,7 +255,6 @@
 
     private void OnTileHovered(MouseEventArgs e)
     {
-
         int x = (int)(e.OffsetX / TILE_SIZE);
         int y = (int)(e.OffsetY / TILE_SIZE);
 
@@ -192,7 +268,7 @@
         _informationBuilder.AppendLine($"Tile @ ({x}, {y})");
         _informationBuilder.AppendLine($"Cost (f(n)): {tile.TotalCost}");
         _informationBuilder.AppendLine($"Heuristic (h(n)): {tile.HeuristicCost}");
-        
+
         if (tile.IsNext)
         {
             _informationBuilder.AppendLine($"Up next");
@@ -207,6 +283,32 @@
         }
 
         TileInformation = _informationBuilder.ToString();
+    }
+
+    private void OnQueueItemEnter(int tileX, int tileY)
+    {
+        if (tileX < 0 || tileX >= MAP_WIDTH || tileY < 0 || tileY >= MAP_HEIGHT)
+        {
+            return;
+        }
+
+        _map.GetTileAt(tileX, tileY).IsHovered = true;
+        var args = new MouseEventArgs()
+        {
+            OffsetX = tileX * TILE_SIZE,
+            OffsetY = tileY * TILE_SIZE
+        };
+        OnTileHovered(args);
+    }
+
+    private void OnQueueItemLeave(int tileX, int tileY)
+    {
+        if (tileX < 0 || tileX >= MAP_WIDTH || tileY < 0 || tileY >= MAP_HEIGHT)
+        {
+            return;
+        }
+
+        _map.GetTileAt(tileX, tileY).IsHovered = false;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -237,6 +339,10 @@
                     else if (_goal.x == x && _goal.y == y)
                     {
                         await this._context.SetFillStyleAsync(STYLE_GOAL);
+                    }
+                    else if(tile.IsHovered)
+                    {
+                        await this._context.SetFillStyleAsync(STYLE_HOVERED);
                     }
                     else if (tile.IsExpanded)
                     {
