@@ -16,9 +16,9 @@
     <AlertDescription>The goal has been reached in @_moveCount moves!</AlertDescription>
 </Alert>
 
-<div class="container">
+<div class="container ms-0">
     <div class="row">
-        <div class="col-auto" @onclick="OnTileClicked" @onmousemove="OnTileHovered">
+        <div class="col-auto ps-0" @onclick="OnTileClicked" @onmousemove="OnTileHovered">
             <BECanvas Width="@(MAP_WIDTH * TILE_SIZE)" Height="@(MAP_HEIGHT * TILE_SIZE)" @ref="_canvasReference"></BECanvas>
         </div>
 
@@ -284,6 +284,7 @@
                     _map.GetTileAt(x, y).IsNext = false;
                     _map.GetTileAt(x, y).TotalCost = 0;
                     _map.GetTileAt(x, y).HeuristicCost = 0;
+                    _map.GetTileAt(x, y).Passable = true;
                 }
             }
         });
