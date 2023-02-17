@@ -53,6 +53,15 @@
     </div>
 </div>
 
+<!--
+<div class="row">
+    <div class="col">
+        <label>Heuristic Function</label>
+        <br />
+        <textarea rows="10" @bind="@JSHeuristicFunction"></textarea>
+    </div>
+</div>
+-->
 
 @code {
     private const int TILE_SIZE = 24;
@@ -84,6 +93,10 @@
         get => _aStar != null && _aStar.GoalReached;
         set { }
     }
+    public string JSHeuristicFunction { get; set; } =
+    """"
+    Math.abs(refTile.X - goalTile.X) + Math.abs(refTile.Y - goalTile.Y);
+    """";
 
     private int _moveCount;
 
@@ -121,7 +134,16 @@
     {
         if(_aStar == null && _start.x != -1 && _start.y != -1 && _goal.x != -1 && _goal.y != -1)
         {
-            _aStar = new Pathing.AStar<World.Tile>(_map.Heuristic, _map.ExpandTile, _map.GetTileAt(_start.x, _start.y), _map.GetTileAt(_goal.x, _goal.y));
+            string source = JSHeuristicFunction;
+            HeuristicFunction<Tile> heuristic = new HeuristicFunction<Tile>((r, g) =>
+            {
+                var jsInProc = (IJSInProcessRuntime)JsRuntime;
+                var result = jsInProc.Invoke<System.Text.Json.JsonElement>("runHeuristic", source, r, g, _map);
+
+                return 0;
+                //return result;
+            });
+            _aStar = new Pathing.AStar<World.Tile>(heuristic, _map.ExpandTile, _map.GetTileAt(_start.x, _start.y), _map.GetTileAt(_goal.x, _goal.y));
         }
     }
 
