@@ -13,9 +13,7 @@
 
 
     <script src="_content/Blazor.Extensions.Canvas/blazor.extensions.canvas.js"></script>
-    <script src="acorn_interpreter.js"></script> <!-- SOURCE: https://neil.fraser.name/software/JS-Interpreter/docs.html -->
-
-
+    <!-- <script src="acorn_interpreter.js"></script>  SOURCE: https://neil.fraser.name/software/JS-Interpreter/docs.html -->
     <!--
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/css/bootstrap.min.css" integrity="sha384-zCbKRCUGaJDkqS1kPbPd7TveP5iyJE0EjAuZQTgFLD2ylzuqKfdKlfG/eSrtxUkn" crossorigin="anonymous">
     -->
@@ -25,23 +23,32 @@
     <link href="_content/Blazorise.Bootstrap/blazorise.bootstrap.css" rel="stylesheet" />
 
     <script>
-        window.runHeuristic = (source, refTile, goalTile, map) => {
+        /*
+        window.runHeuristic = async (source, refTile, goalTile, map) => {
+            const args = { refTile: refTile, goalTile: goalTile, map: map };
+            try {
+                setup();
+                var result = await exe(source, args).catch(e => console.log(e));
+                return result;
+            } catch (e) {
+                console.log(e);
+            }
 
-            var interpreter = new Interpreter(source, (i, g) => {
-                var ref = i.nativeToPseudo(refTile);
-                var goal = i.nativeToPseudo(goalTile);
-                var map = i.nativeToPseudo(map);
+            //var interpreter = new Interpreter(source, (i, g) => {
+            //    var ref = i.nativeToPseudo(refTile);
+            //    var goal = i.nativeToPseudo(goalTile);
+            //    var map = i.nativeToPseudo(map);
 
-                i.setProperty(g, 'refTile', ref);
-                i.setProperty(g, 'goalTile', goal);
-                i.setProperty(g, 'map', map);
-            });
+            //    i.setProperty(g, 'refTile', ref);
+            //    i.setProperty(g, 'goalTile', goal);
+            //    i.setProperty(g, 'map', map);
+            //});
 
-            
 
-            interpreter.run();
-            return interpreter.value;
-        }
+
+            //interpreter.run();
+            //return interpreter.value;
+        }*/
     </script>
 </head>
 

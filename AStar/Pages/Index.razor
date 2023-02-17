@@ -16,56 +16,94 @@
     <AlertDescription>The goal has been reached in @_moveCount moves!</AlertDescription>
 </Alert>
 
-<div class="row">
-    <div class="col" style="max-width: @(MAP_WIDTH * TILE_SIZE)px" @onclick="OnTileClicked" @onmousemove="OnTileHovered">
-        <BECanvas Width="@(MAP_WIDTH * TILE_SIZE)" Height="@(MAP_HEIGHT * TILE_SIZE)" @ref="_canvasReference"></BECanvas>
+<div class="container">
+    <div class="row">
+        <div class="col-auto" @onclick="OnTileClicked" @onmousemove="OnTileHovered">
+            <BECanvas Width="@(MAP_WIDTH * TILE_SIZE)" Height="@(MAP_HEIGHT * TILE_SIZE)" @ref="_canvasReference"></BECanvas>
+        </div>
+
+        <div class="overflow-auto col border-start" style="max-height: @(MAP_HEIGHT * TILE_SIZE)px">
+            @foreach (var queueItem in Queue.OrderBy(n => n.TotalCost))
+            {
+                <span @onmouseenter="() => OnQueueItemEnter(queueItem.Data.X, queueItem.Data.Y)" @onmouseleave="() => OnQueueItemLeave(queueItem.Data.X, queueItem.Data.Y)">
+                    <label>(@queueItem.Data.X, @queueItem.Data.Y) f: @queueItem.TotalCost</label>
+                    <small>&nbsp;&nbsp;<i>g: @queueItem.PathCost + h: @queueItem.HeuristicCost</i></small>
+                </span>
+                <br />
+            }
+        </div>
     </div>
 
-    <div class="overflow-auto col border-start ms-3" style="max-height: @(MAP_HEIGHT * TILE_SIZE)px">
-        @foreach (var queueItem in Queue.OrderBy(n => n.TotalCost))
-        {
-            <span @onmouseenter="() => OnQueueItemEnter(queueItem.Data.X, queueItem.Data.Y)" @onmouseleave="() => OnQueueItemLeave(queueItem.Data.X, queueItem.Data.Y)">
-                <label>(@queueItem.Data.X, @queueItem.Data.Y) f: @queueItem.TotalCost</label>
-                <small>&nbsp;&nbsp;<i>g: @queueItem.PathCost + h: @queueItem.HeuristicCost</i></small>
-            </span>
-            <br />
-        }
+
+    
+    <div class="row">
+        <div class="col-auto">
+            <div class="row">
+                <textarea readonly rows="6">@TileInformation</textarea>
+            </div>
+            <div class="row">
+                <label class="p-0">Status: @Status</label>
+            </div>
+        </div>
+        <div class="col">
+            <div class="row">
+                <div class="col">
+                    <button class="btn btn-outline-primary" @onclick="OnResetClicked">Reset</button>
+                    <button class="btn btn-outline-primary" @onclick="OnSetStartClicked">Set Start</button>
+                    <button class="btn btn-outline-primary" @onclick="OnSetGoalClicked">Set Goal</button>
+                </div>
+            </div>
+            <div class="row mt-1">
+                <div class="col-auto pe-0">
+                    <select class="form-select">
+                        <option>A*</option>
+                        <option>GBFS</option>
+                    </select>
+                </div>
+                <div class="col">
+                    <button class="btn btn-outline-primary" @onclick="OnRunClicked">Run</button>
+                    <button class="btn btn-outline-primary" @onclick="OnStepClicked">Step</button>
+                </div>
+            </div>
+            <div class="row mt-1">
+                <div class="col-auto">
+                    <label class="form-label">Horizontal movement cost:</label>
+                </div>
+                <div class="col-auto">
+                    <input class="form-control" type="number" />
+                </div>
+            </div>
+            <div class="row mt-1">
+                <div class="col-auto">
+                    <label class="form-label">Vertical movement cost:&nbsp;&nbsp;&nbsp;&nbsp;</label>
+                </div>
+                <div class="col-auto">
+                    <input class="form-control" type="number" />
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 
 
-<div class="row">
-    <div class="col">
-        <button class="btn btn-outline-primary" @onclick="OnResetClicked">Reset</button>
-        <button class="btn btn-outline-primary" @onclick="OnSetStartClicked">Set Start</button>
-        <button class="btn btn-outline-primary" @onclick="OnSetGoalClicked">Set Goal</button>
-        <button class="btn btn-outline-primary" @onclick="OnRunClicked">Run</button>
-        <button class="btn btn-outline-primary" @onclick="OnStepClicked">Step</button>
-    </div>
-</div>
 
 <div class="row">
-    <div class="col">
-        <label>@Status</label>
-        <br />
-        <textarea readonly rows="6">@TileInformation</textarea>
-    </div>
+
 </div>
 
-<!--
-<div class="row">
+
+@*<div class="row">
     <div class="col">
         <label>Heuristic Function</label>
         <br />
         <textarea rows="10" @bind="@JSHeuristicFunction"></textarea>
     </div>
-</div>
--->
+</div>*@
 
 @code {
     private const int TILE_SIZE = 24;
-    private const int MAP_WIDTH = 20;
+    private const int MAP_WIDTH = 30;
     private const int MAP_HEIGHT = 20;
 
     private const string STYLE_START = "red";
@@ -138,7 +176,9 @@
             HeuristicFunction<Tile> heuristic = new HeuristicFunction<Tile>((r, g) =>
             {
                 var jsInProc = (IJSInProcessRuntime)JsRuntime;
-                var result = jsInProc.Invoke<System.Text.Json.JsonElement>("runHeuristic", source, r, g, _map);
+                var result = jsInProc.Invoke<dynamic>("runHeuristic", source, r, g, _map);
+
+                Console.WriteLine(result);
 
                 return 0;
                 //return result;
@@ -154,6 +194,7 @@
             return;
         }
 
+        // Clear UI state from previous step
         var nextTile = _aStar.CurrentState.Next?.Data;
         if(nextTile != null)
         {
@@ -172,8 +213,10 @@
             _map.GetTileAt(tile.X, tile.Y).IsExpanded = false;
         }
 
+        // Step
         _aStar.Step();
 
+        // Set UI state from latest step
         nextTile = _aStar.CurrentState.Next?.Data;
         if(nextTile != null)
         {
@@ -221,6 +264,7 @@
         TileInformation = "";
         Queue.Clear();
         Status = "";
+        _moveCount = 0;
 
         for (int x = 0; x < _map.Width; x++)
         {
@@ -247,7 +291,7 @@
         _settingGoal = !_settingGoal;
     }
 
-    private void OnTileClicked(MouseEventArgs e)
+    private async Task OnTileClicked(MouseEventArgs e)
     {
         int x = (int)(e.OffsetX / TILE_SIZE);
         int y = (int)(e.OffsetY / TILE_SIZE);
@@ -331,6 +375,12 @@
         }
 
         _map.GetTileAt(tileX, tileY).IsHovered = false;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        //await System.Runtime.InteropServices.JavaScript.JSHost.ImportAsync("SlashdRun", "https://unpkg.com/@slashd/run");
+        await base.OnInitializedAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
