@@ -346,11 +346,19 @@
 
         if(_settingStart)
         {
+            if(_start != (-1, -1))
+            {
+                _map.GetTileAt(_start.x, _start.y).DirtyRender = true;
+            }
             _start = (x, y);
             _settingStart = false;
         }
         else if(_settingGoal)
         {
+            if (_goal != (-1, -1))
+            {
+                _map.GetTileAt(_goal.x, _goal.y).DirtyRender = true;
+            }
             _goal = (x, y);
             _settingGoal = false;
         }
