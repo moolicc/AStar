@@ -7,8 +7,8 @@
 @using System.Text;
 @using Pathing;
 @using System.Diagnostics.CodeAnalysis;
-@inject IJSRuntime JsRuntime;
 @using Blazorise
+@inject IJSRuntime JsRuntime;
 
 
 <Alert Color="Color.Success" Visible="@GoalReached">
@@ -23,13 +23,20 @@
         </div>
 
         <div class="overflow-auto col border-start" style="max-height: @(MAP_HEIGHT * TILE_SIZE)px">
+            @{ int i = 0; }
             @foreach (var queueItem in Queue)
             {
+                @if (i == 0)
+                {
+                    <Icon Name="Blazorise.Icons.FontAwesome.FontAwesomeIcons.AngleDoubleRight" style="color: orange;"></Icon>
+                    <label></label>
+                }
                 <span @onmouseenter="() => OnQueueItemEnter(queueItem.Data.X, queueItem.Data.Y)" @onmouseleave="() => OnQueueItemLeave(queueItem.Data.X, queueItem.Data.Y)">
                     <label>(@queueItem.Data.X, @queueItem.Data.Y) f: @queueItem.TotalCost</label>
                     <small>&nbsp;&nbsp;<i>g: @queueItem.PathCost + h: @queueItem.HeuristicCost</i></small>
                 </span>
                 <br />
+                i++;
             }
         </div>
     </div>
@@ -104,17 +111,17 @@
     private const int MAP_WIDTH = 30;
     private const int MAP_HEIGHT = 20;
 
-    private const string STYLE_START = "red";
-    private const string STYLE_GOAL = "green";
+    private const string STYLE_START = "green";
+    private const string STYLE_GOAL = "cornflowerblue";
 
     private const string STYLE_PASSABLE = "ghostwhite";
-    private const string STYLE_WALL = "blue";
+    private const string STYLE_WALL = "black";
 
     private const string STYLE_FRONTIER = "yellow";
     private const string STYLE_NEXT = "orange";
     private const string STYLE_EXPANDED = "darkgoldenrod";
 
-    private const string STYLE_HOVERED = "cornflowerblue";
+    private const string STYLE_HOVERED = "skyblue";
 
 
     private bool _settingStart;
@@ -209,11 +216,11 @@
         }
 
         // Clear UI state from previous step
-        var nextTile = _aStar.CurrentState.Next?.Data;
+        var nextTile = _aStar.CurrentState.Next;
         if(nextTile != null)
         {
-            _map.GetTileAt(nextTile.Value.X, nextTile.Value.Y).IsNext = false;
-            _map.GetTileAt(nextTile.Value.X, nextTile.Value.Y).DirtyRender = true;
+            _map.GetTileAt(nextTile.Data.X, nextTile.Data.Y).IsNext = false;
+            _map.GetTileAt(nextTile.Data.X, nextTile.Data.Y).DirtyRender = true;
         }
 
         foreach (var frontierItem in _aStar.CurrentState.PriorityQueue.UnorderedItems)
@@ -234,12 +241,6 @@
         _aStar.Step();
 
         // Set UI state from latest step
-        nextTile = _aStar.CurrentState.Next?.Data;
-        if(nextTile != null)
-        {
-            _map.GetTileAt(nextTile.Value.X, nextTile.Value.Y).IsNext = true;
-            _map.GetTileAt(nextTile.Value.X, nextTile.Value.Y).DirtyRender = true;
-        }
 
         Queue.Clear();
         foreach (var frontierItem in _aStar.CurrentState.PriorityQueue.UnorderedItems.OrderBy(n => n.Priority))
@@ -250,6 +251,16 @@
 
             Queue.Add(frontierItem.Element);
         }
+
+        nextTile = _aStar.CurrentState.Next;
+        if(nextTile != null)
+        {
+            _map.GetTileAt(nextTile.Data.X, nextTile.Data.Y).IsNext = true;
+            _map.GetTileAt(nextTile.Data.X, nextTile.Data.Y).DirtyRender = true;
+
+            Queue.Insert(0, nextTile);
+        }
+
 
         foreach (var expandedItem in _aStar.CurrentState.Expanded)
         {

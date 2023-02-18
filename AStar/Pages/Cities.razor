@@ -1,18 +1,596 @@
-﻿@page "/counter"
+﻿@page "/cities"
+@using Blazorise
+@using DotNetGraph; @*https://github.com/vfrz/DotNetGraph*@
+@using DotNetGraph.Edge;
+@using DotNetGraph.Extensions;
+@using DotNetGraph.Node;
+@using IniParser.Exceptions;
+@using IniParser.Model;
+@using IniParser.Parser;
+@using Pathing;
+@using World;
+@using GdiColor = System.Drawing.Color;
+@inject IJSRuntime JsRuntime;
 
-<PageTitle>Counter</PageTitle>
+<PageTitle>Cities</PageTitle>
 
-<h1>Counter</h1>
 
-<p role="status">Current count: @currentCount</p>
+<Alert Color="Color.Danger" Visible="@ErrorVisible">
+    <AlertMessage>Error</AlertMessage>
+    <AlertDescription>@ErrorText</AlertDescription>
+</Alert>
 
-<button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
+<div class="container ms-0">
+
+    <div class="row">
+        <div class="col">
+            <div class="mh-100" @ref="_renderElement">
+            </div>
+        </div>
+        <div class="overflow-auto col border-start">
+            @{ int i = 0; }
+            @foreach (var queueItem in Queue)
+            {
+                <span>
+                    @if(i == 0)
+                    {
+                        <Icon Name="Blazorise.Icons.FontAwesome.FontAwesomeIcons.AngleDoubleRight" style="color: orange;"></Icon>
+                        <label></label>
+                    }
+                    <label>@queueItem.Data.Name f: @queueItem.TotalCost</label>
+                    <small>&nbsp;&nbsp;<i>g: @queueItem.PathCost + h: @queueItem.HeuristicCost</i></small>
+                </span>
+                <br />
+                i++;
+            }
+        </div>
+    </div>
+
+    <div class="row">
+        
+        <div class="col">
+            <div class="row">
+                <div class="col-auto">
+                    <label class="form-label mb-0">Graph Engine:</label>
+                </div>
+                <div class="col-2 ps-0 mb-1">
+                    <select class="form-select" @bind="GraphEngine">
+                        <option value="circo">circo</option>
+                        <option value="dot">dot</option>
+                        <option value="fdp">fdp</option>
+                        <option value="sfdp">sfdp</option>
+                        <option value="neato">neato</option>
+                        <option value="osage">osage</option>
+                        <option value="patchwork">patchwork</option>
+                        <option value="twopi">twopi</option>
+                    </select>
+                </div>
+                <div class="col-2 ps-0">
+                    <Button class="btn btn-outline-primary" @onclick="@OnDrawInitialMap">Draw map</Button>
+                </div>
+            </div>
+            <div class="row">
+                <InputFile class="form-control" OnChange="@LoadIniFile" accept=".ini"></InputFile>
+            </div>
+            <div class="row">
+                <textarea class="form-text" rows="@InputRowCount" @onfocusin="OnInputFocus" @onfocusout="OnInputLostFocus" @bind="@IniText"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <button class="btn btn-outline-primary" @onclick="OnRunClicked" disabled="@(!MapLoaded || Running)">Run</button>
+        <button class="btn btn-outline-primary" @onclick="OnStepClicked" disabled="@(!MapLoaded || Running)">Step</button>
+    </div>
+
+</div>
+
+
 
 @code {
-    private int currentCount = 0;
+    private const string INI_GOAL_KEY = "goal";
+    private const string INI_START_KEY = "start";
+    private const string INI_HEURISTIC_KEY = "h";
 
-    private void IncrementCount()
+    private static readonly GdiColor STYLE_FILL = GdiColor.GhostWhite;
+    private static readonly GdiColor STYLE_FILL_START = GdiColor.Green;
+    private static readonly GdiColor STYLE_FILL_GOAL = GdiColor.CornflowerBlue;
+
+    private static readonly GdiColor STYLE_OUTLINE = GdiColor.Black;
+    private static readonly GdiColor STYLE_OUTLINE_START = GdiColor.Green;
+    private static readonly GdiColor STYLE_OUTLINE_GOAL = GdiColor.CornflowerBlue;
+
+    private static readonly GdiColor STYLE_OUTLINE_FRONTIER = GdiColor.Gold;
+    private static readonly GdiColor STYLE_OUTLINE_NEXT = GdiColor.DarkOrange;
+    private static readonly GdiColor STYLE_OUTLINE_EXPANDED = GdiColor.DarkGoldenrod;
+
+    private static readonly GdiColor STYLE_FONT = GdiColor.Black;
+    private static readonly GdiColor STYLE_EDGE = GdiColor.Black;
+    private static readonly GdiColor STYLE_EDGE_FRONTIER = GdiColor.Gold;
+    private static readonly GdiColor STYLE_EDGE_NEXT = GdiColor.DarkOrange;
+    private static readonly GdiColor STYLE_EDGE_EXPANDED = GdiColor.DarkGoldenrod;
+    private static readonly GdiColor STYLE_EDGE_GOAL = GdiColor.CornflowerBlue;
+
+    private const int INPUT_ROWS_FOCUS = 25;
+    private const int INPUT_ROWS_NOFOCUS = 1;
+
+
+    public bool ErrorVisible { get; set; } = false;
+    public string ErrorText { get; set; } = "";
+    public string GraphEngine { get; set; } = "fdp";
+    public int InputRowCount { get; set; } = INPUT_ROWS_NOFOCUS;
+    public bool MapLoaded { get; set; } = false;
+    public bool Running { get; set; } = false;
+    private List<TreeNode<City>> Queue { get; set; } = new List<TreeNode<City>>();
+
+
+    private DotGraph _graph = new DotGraph("Map", true);
+    private ElementReference _renderElement;
+
+    private City? _startingCity;
+    private City? _goalCity;
+
+    private List<City> _loadedCities = new List<City>();
+
+    private AStar<City>? _aStar;
+
+
+    private async Task LoadIniFile(InputFileChangeEventArgs e)
     {
-        currentCount++;
+        var reader = new StreamReader(e.File.OpenReadStream());
+
+        IniText = await reader.ReadToEndAsync();
+
+        reader.Dispose();
     }
+
+    private async Task OnDrawInitialMap()
+    {
+        _graph.Elements.Clear();
+        ParseIniToGraph();
+        await RenderDotAsync(_graph.Compile());
+    }
+
+    private async Task OnDrawSubsequentMap()
+    {
+        _graph.Elements.Clear();
+        ParseCitiesToGraph();
+        await RenderDotAsync(_graph.Compile());
+    }
+
+    private void OnInputFocus()
+    {
+        InputRowCount = INPUT_ROWS_FOCUS;
+    }
+
+    private void OnInputLostFocus()
+    {
+        InputRowCount = INPUT_ROWS_NOFOCUS;
+    }
+
+    private void OnRunClicked()
+    {
+        Running = true;
+        CheckAStar();
+    }
+
+    private async Task OnStepClicked()
+    {
+        Running = true;
+        CheckAStar();
+        StepAStar();
+        await OnDrawSubsequentMap();
+        Running = false;
+    }
+
+    private void ParseIniToGraph()
+    {
+        ResetMap();
+        var iniParser = new IniDataParser();
+
+        IniData ini;
+        try
+        {
+            ini = iniParser.Parse(IniText);
+        }
+        catch (ParsingException ex)
+        {
+            ShowError($"Failed to parse ini.\nSyntax error on line #{ex.LineNumber}\n'{ex.LineValue}'");
+            return;
+        }
+
+        var goal = ini.Global["goal"];
+        var start = ini.Global["start"];
+
+        if (goal == null || start == null)
+        {
+            ShowError("Start or Goal cities not specified.");
+            return;
+        }
+
+        // Collect all cities and validate edges.
+        foreach (var section in ini.Sections)
+        {
+            int hValue = int.MaxValue;
+
+            List<(string Neighbor, int Weight)> neighbors = new List<(string Neighbor, int Weight)>();
+
+            foreach (var setting in section.Keys)
+            {
+                if (setting.KeyName == INI_HEURISTIC_KEY)
+                {
+                    hValue = int.Parse(setting.Value);
+                    continue;
+                }
+
+                if (setting.KeyName == section.SectionName)
+                {
+                    ShowError($"City cannot contain an edge directed to itself.\nCity: '{section.SectionName}'");
+                    return;
+                }
+
+                if (!ini.Sections.ContainsSection(setting.KeyName))
+                {
+                    ShowError($"City contains an edge to an undefined city.\n[From] City: '{section.SectionName}'\n[To] City: '{setting.KeyName}'");
+                    return;
+                }
+
+                if (_graph.Elements.Any(i =>
+                {
+                    if (i is DotEdge edge)
+                    {
+                        if (edge.Left is DotString left && edge.Right is DotString right)
+                        {
+                            if (left.Value == setting.KeyName && right.Value == section.SectionName)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                }))
+                {
+                    continue;
+                }
+                int cost = int.Parse(setting.Value);
+                neighbors.Add((setting.KeyName, cost));
+
+                var edge = CreateGraphEdge(section.SectionName, setting.KeyName, cost);
+                _graph.Elements.Add(edge);
+            }
+
+            var city = new City(section.SectionName, hValue);
+            city.Neighbors.AddRange(neighbors);
+            if (section.SectionName == start)
+            {
+                _startingCity = city;
+            }
+            else if (section.SectionName == goal)
+            {
+                _goalCity = city;
+            }
+            _loadedCities.Add(city);
+
+            _graph.Elements.Add(CreateGraphNode(city));
+        }
+
+        MapLoaded = true;
+    }
+
+    private void ParseCitiesToGraph()
+    {
+        _graph.Elements.Clear();
+
+        foreach (var city in _loadedCities)
+        {
+            _graph.Elements.Add(CreateGraphNode(city));
+
+            foreach (var neighbor in city.Neighbors)
+            {
+                var targetCity = _loadedCities.First(c => c.Name == neighbor.Name);
+
+                // Figure out if the target city is on the frontier, is next, or has been expanded.
+                // Also need to check the current city in case the relationship goes in the opposite direction.
+
+
+                var color = STYLE_EDGE;
+                if(city.IsExpanded)
+                {
+                    if(targetCity.IsExpanded)
+                    {
+                        color = STYLE_EDGE_EXPANDED;
+                    }
+                    else if(targetCity.IsNext && _goalCity == targetCity)
+                    {
+                        //color = STYLE_EDGE_GOAL;
+                        color = STYLE_EDGE_NEXT;
+                    }
+                    else if(targetCity.IsNext)
+                    {
+                        color = STYLE_EDGE_NEXT;
+                    }
+                    else if(targetCity.OnFrontier)
+                    {
+                        color = STYLE_EDGE_FRONTIER;
+                    }
+                }
+                if (targetCity.IsExpanded)
+                {
+                    if (city.IsExpanded)
+                    {
+                        color = STYLE_EDGE_EXPANDED;
+                    }
+                    else if (city.IsNext && _goalCity == targetCity)
+                    {
+                        //color = STYLE_EDGE_GOAL;
+                        color = STYLE_EDGE_NEXT;
+                    }
+                    else if (city.IsNext)
+                    {
+                        color = STYLE_EDGE_NEXT;
+                    }
+                    else if (city.OnFrontier)
+                    {
+                        color = STYLE_EDGE_FRONTIER;
+                    }
+                }
+
+                var edge = CreateGraphEdge(city.Name, neighbor.Name, neighbor.Weight, color);
+                _graph.Elements.Add(edge);
+            }
+        }
+    }
+
+    private void StepAStar()
+    {
+        if(_aStar == null || _aStar.GoalReached)
+        {
+            return;
+        }
+
+        // Clear UI state from previous step
+        Queue.Clear();
+        foreach (var city in _loadedCities)
+        {
+            city.IsNext = false;
+            city.OnFrontier = false;
+            city.IsExpanded = false;
+        }
+
+        // Perform an iteration.
+        _aStar.Step();
+
+
+        // Setup new UI state.
+        foreach (var frontier in _aStar.CurrentState.PriorityQueue.UnorderedItems.OrderBy(n => n.Priority))
+        {
+            frontier.Element.Data.OnFrontier = true;
+            Queue.Add(frontier.Element);
+        }
+
+        foreach (var expanded in _aStar.CurrentState.Expanded)
+        {
+            expanded.Data.IsExpanded = true;
+        }
+
+        var next = _aStar.CurrentState.Next;
+        if(next != null)
+        {
+            next.Data.IsNext = true;
+            Queue.Insert(0, next);
+        }
+    }
+
+
+    private async Task RenderDotAsync(string dot)
+    {
+        await JsRuntime.InvokeAsync<string>("Graphing.render", _renderElement, GraphEngine, dot);
+    }
+
+    private void ResetPathing()
+    {
+        _aStar = null;
+
+        foreach (var city in _loadedCities)
+        {
+            city.IsExpanded = false;
+            city.OnFrontier = false;
+            city.IsNext = false;
+            city.PathCost = 0;
+        }
+    }
+
+    private void ResetMap()
+    {
+        MapLoaded = false;
+        _aStar = null;
+        _graph.Elements.Clear();
+        _loadedCities.Clear();
+        _startingCity = null;
+        _goalCity = null;
+    }
+
+    private DotNode CreateGraphNode(City city)
+    {
+        var fill = STYLE_FILL;
+        if (city == _startingCity)
+        {
+            fill = STYLE_FILL_START;
+        }
+        else if (city == _goalCity)
+        {
+            fill = STYLE_FILL_GOAL;
+        }
+
+
+        string tooltip = $"{city.Name}";
+        var outline = STYLE_OUTLINE;
+
+        if (city == _startingCity)
+        {
+            outline = STYLE_OUTLINE_START;
+        }
+        else if (city == _goalCity)
+        {
+            outline = STYLE_OUTLINE_GOAL;
+        }
+        else if(city.IsExpanded)
+        {
+            outline = STYLE_OUTLINE_EXPANDED;
+            tooltip += " : Expanded";
+        }
+        else if(city.IsNext)
+        {
+            outline = STYLE_OUTLINE_NEXT;
+            tooltip += " : Next";
+        }
+        else if(city.OnFrontier)
+        {
+            outline = STYLE_OUTLINE_FRONTIER;
+            tooltip += " : On Frontier";
+        }
+
+
+        var node = new DotNode(city.Name)
+            {
+                Shape = DotNodeShape.House,
+                Label = $"{city.Name}\nh:{city.HeuristicCost}",
+                FillColor = fill,
+                Color = outline,
+                FontColor = STYLE_FONT,
+                Style = DotNodeStyle.Solid,
+                PenWidth = new DotNetGraph.Attributes.DotPenWidthAttribute(2.0f)
+            };
+        node.SetCustomAttribute("tooltip", $"\"{tooltip}\"");
+        return node;
+    }
+
+    private DotEdge CreateGraphEdge(string fromCity, string toCity, int? weight, GdiColor? color = null)
+    {
+        var edge = new DotEdge(fromCity, toCity)
+        {
+            ArrowHead = DotEdgeArrowType.None,
+            ArrowTail = DotEdgeArrowType.None,
+            Color = color ?? STYLE_EDGE,
+            FontColor = STYLE_FONT,
+            Label = weight?.ToString() ?? "",
+            Style = DotEdgeStyle.Solid,
+        };
+        return edge;
+    }
+
+
+    private void CheckAStar()
+    {
+        if (_aStar == null)
+        {
+            _aStar = new AStar<City>(HeuristicFunction, ExpanderFunction, _startingCity!, _goalCity!);
+        }
+    }
+
+    private int HeuristicFunction(City referenceCity, City goalCity)
+    {
+        return referenceCity.HeuristicCost;
+    }
+
+    private IEnumerable<(City, int)> ExpanderFunction(City referenceCity)
+    {
+        return referenceCity.Neighbors.Select(p => (_loadedCities.First(c => c.Name == p.Name), p.Weight));
+    }
+
+    private void ShowError(string message)
+    {
+        const int ERROR_TIME = 3000;
+
+        ErrorText = message;
+        ErrorVisible = true;
+
+        Task.Run(async () =>
+        {
+            await Task.Delay(ERROR_TIME);
+            ErrorVisible = false;
+        });
+    }
+
+    public string IniText { get; set; } =
+    """"
+goal=Bucharest
+start=Arad
+
+[Arad]
+h=366
+Zerind=75
+Sibiu=140
+Timisoara=118
+
+[Zerind]
+h=374
+Arad=75
+Oradea=71
+
+[Sibiu]
+h=253
+Arad=140
+Fagaras=99
+Rimnicu=80
+Oradea=151
+
+[Timisoara]
+h=329
+Arad=118
+Lugoj=111
+
+[Oradea]
+h=380
+Zerind=71
+Sibiu=151
+
+[Fagaras]
+h=167
+Sibiu=99
+Bucharest=211
+
+[Rimnicu]
+h=193
+Sibiu=80
+Pitesti=97
+Craiova=146
+
+[Lugoj]
+h=244
+Timisoara=111
+Mehadia=70
+
+[Bucharest]
+h=0
+Fagaras=211
+Pitesti=101
+Giurgiu=90
+
+[Pitesti]
+h=100
+Rimnicu=97
+Bucharest=101
+Craiova=138
+
+[Craiova]
+h=160
+Rimnicu=146
+Pitesti=138
+Drobeta=120
+
+[Mehadia]
+h=241
+Lugoj=70
+Drobeta=75
+
+[Drobeta]
+h=242
+Mehadia=75
+Craiova=120
+
+[Giurgiu]
+h=77
+Bucharest=90
+"""";
 }
