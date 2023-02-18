@@ -7,7 +7,7 @@
   "linkerEnabled": true,
   "resources": {
     "assembly": {
-      "AStar.dll": "sha256-SGZOQXyW2JiXD37xkLbpLQznX5m3ZBUOQgHfLv3ZtLA=",
+      "AStar.dll": "sha256-wkUiLn1CG54Zeyu9GYCZYsje6KqWiI3P\/H0\/M28SBSo=",
       "Blazor.Diagrams.Core.dll": "sha256-lr5zpZAt\/HD1SYDyDMOfuyB9oaQogWgwUsV756ElyaM=",
       "Blazor.Diagrams.dll": "sha256-SZXAEDYNazrsz+Dt1cnhHjZmk4sh8Mvgfb6IeJrhX9o=",
       "Blazor.Extensions.Canvas.dll": "sha256-W20pWMXQg2yTv0w4VJhrjCJKNRYe3PiUU9S76XipNe8=",
@@ -35,7 +35,7 @@
       "Microsoft.JSInterop.dll": "sha256-DvN5OmLJ0zqfYITSLviEaHLnVNBCCCLG5U\/byrisrvo=",
       "Microsoft.JSInterop.WebAssembly.dll": "sha256-bn\/jJGkSeaQbmqAl6uUM0y1joLrVEzldOc3y5mscYMk=",
       "netstandard.dll": "sha256-f3HoxxCQBbN9x0YyaKf\/\/HIlMeDGAXRu5vaqtZVHX00=",
-      "Pathing.dll": "sha256-YMXYVVJiRDgmS\/fWT1QnUcm2t76gVg3gPS+apgCWBYk=",
+      "Pathing.dll": "sha256-X9\/Tz2zuvkdcv83tZCG5w61wal8Bl7ZHLKbkFmUEjLQ=",
       "SvgPathProperties.dll": "sha256-MiVtSL5\/BnG1TUZXHvtXdM249b3jupprOPX5xyrR78w=",
       "System.Collections.Concurrent.dll": "sha256-KpRW1Ty\/d8aKDA7TzPjejUIhyyX6rc+SXIZ4v5lpTaE=",
       "System.Collections.dll": "sha256-qtqF4fR9os57jz2DbWzgfMVvBLkgvL7R4RtDVZAs2MI=",
