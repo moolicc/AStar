@@ -11,6 +11,7 @@ namespace AStar.World
         public bool IsHovered { get; set; }
         public bool OnFrontier { get; set; }
         public bool IsNext { get; set; }
+        public bool DirtyRender { get; set; }
         public int TotalCost { get; set; }
         public int HeuristicCost { get; set; }
 

@@ -11,7 +11,7 @@
 @using Blazorise
 
 
-<Alert Color="Color.Success" @bind-Visible="@GoalReached">
+<Alert Color="Color.Success" Visible="@GoalReached">
     <AlertMessage>Goal reached!</AlertMessage>
     <AlertDescription>The goal has been reached in @_moveCount moves!</AlertDescription>
 </Alert>
@@ -23,7 +23,7 @@
         </div>
 
         <div class="overflow-auto col border-start" style="max-height: @(MAP_HEIGHT * TILE_SIZE)px">
-            @foreach (var queueItem in Queue.OrderBy(n => n.TotalCost))
+            @foreach (var queueItem in Queue)
             {
                 <span @onmouseenter="() => OnQueueItemEnter(queueItem.Data.X, queueItem.Data.Y)" @onmouseleave="() => OnQueueItemLeave(queueItem.Data.X, queueItem.Data.Y)">
                     <label>(@queueItem.Data.X, @queueItem.Data.Y) f: @queueItem.TotalCost</label>
@@ -60,9 +60,15 @@
                         <option>GBFS</option>
                     </select>
                 </div>
-                <div class="col">
+                <div class="col-auto">
                     <button class="btn btn-outline-primary" @onclick="OnRunClicked">Run</button>
                     <button class="btn btn-outline-primary" @onclick="OnStepClicked">Step</button>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label mb-0">Run Delay:</label>
+                </div>
+                <div class="col-auto ps-0">
+                    <input class="form-control w-50" type="number" disabled="@Solving" @bind="RunDelay" />
                 </div>
             </div>
             <div class="row mt-1">
@@ -84,14 +90,6 @@
         </div>
     </div>
 </div>
-
-
-
-
-<div class="row">
-
-</div>
-
 
 @*<div class="row">
     <div class="col">
@@ -132,6 +130,8 @@
         set { }
     }
     public bool Running { get; set; } = false;
+    public bool Solving { get; set; } = false;
+    public int RunDelay { get; set; } = 250;
     public int HorizontalCost { get; set; } = 4;
     public int VerticalCost { get; set; } = 3;
     public string JSHeuristicFunction { get; set; } =
@@ -155,16 +155,24 @@
     private StringBuilder _informationBuilder = new StringBuilder();
 
 
-    private Task OnRunClicked()
+    private async Task OnRunClicked()
     {
+        if(Solving)
+        {
+            Solving = false;
+            return;
+        }
+
+        Solving = true;
         Running = true;
         RecreateAStar();
 
-        while (_aStar != null && !_aStar.GoalReached)
+        while (_aStar != null && !_aStar.GoalReached && Solving)
         {
             StepAStar();
+            StateHasChanged();
+            await Task.Delay(RunDelay);
         }
-        return Task.CompletedTask;
     }
 
     private void OnStepClicked()
@@ -205,18 +213,21 @@
         if(nextTile != null)
         {
             _map.GetTileAt(nextTile.Value.X, nextTile.Value.Y).IsNext = false;
+            _map.GetTileAt(nextTile.Value.X, nextTile.Value.Y).DirtyRender = true;
         }
 
         foreach (var frontierItem in _aStar.CurrentState.PriorityQueue.UnorderedItems)
         {
             var tile = frontierItem.Element.Data;
             _map.GetTileAt(tile.X, tile.Y).OnFrontier = false;
+            _map.GetTileAt(tile.X, tile.Y).DirtyRender = true;
         }
 
         foreach (var expandedItem in _aStar.CurrentState.Expanded)
         {
             var tile = expandedItem.Data;
             _map.GetTileAt(tile.X, tile.Y).IsExpanded = false;
+            _map.GetTileAt(tile.X, tile.Y).DirtyRender = true;
         }
 
         // Step
@@ -227,13 +238,15 @@
         if(nextTile != null)
         {
             _map.GetTileAt(nextTile.Value.X, nextTile.Value.Y).IsNext = true;
+            _map.GetTileAt(nextTile.Value.X, nextTile.Value.Y).DirtyRender = true;
         }
 
         Queue.Clear();
-        foreach (var frontierItem in _aStar.CurrentState.PriorityQueue.UnorderedItems)
+        foreach (var frontierItem in _aStar.CurrentState.PriorityQueue.UnorderedItems.OrderBy(n => n.Priority))
         {
             var tile = frontierItem.Element.Data;
             _map.GetTileAt(tile.X, tile.Y).OnFrontier = true;
+            _map.GetTileAt(tile.X, tile.Y).DirtyRender = true;
 
             Queue.Add(frontierItem.Element);
         }
@@ -242,6 +255,7 @@
         {
             var tile = expandedItem.Data;
             _map.GetTileAt(tile.X, tile.Y).IsExpanded = true;
+            _map.GetTileAt(tile.X, tile.Y).DirtyRender = true;
         }
 
 
@@ -260,10 +274,9 @@
         {
             Status = $"{_moveCount} moves";
         }
-        StateHasChanged();
     }
 
-    private async Task OnResetClicked()
+    private void OnResetClicked()
     {
         _start = (-1, -1);
         _goal = (-1, -1);
@@ -273,21 +286,19 @@
         _moveCount = 0;
 
 
-        await Task.Run(() =>
+        for (int x = 0; x < _map.Width; x++)
         {
-            for (int x = 0; x < _map.Width; x++)
+            for (int y = 0; y < _map.Height; y++)
             {
-                for (int y = 0; y < _map.Height; y++)
-                {
-                    _map.GetTileAt(x, y).OnFrontier = false;
-                    _map.GetTileAt(x, y).IsExpanded = false;
-                    _map.GetTileAt(x, y).IsNext = false;
-                    _map.GetTileAt(x, y).TotalCost = 0;
-                    _map.GetTileAt(x, y).HeuristicCost = 0;
-                    _map.GetTileAt(x, y).Passable = true;
-                }
+                _map.GetTileAt(x, y).OnFrontier = false;
+                _map.GetTileAt(x, y).IsExpanded = false;
+                _map.GetTileAt(x, y).IsNext = false;
+                _map.GetTileAt(x, y).TotalCost = 0;
+                _map.GetTileAt(x, y).HeuristicCost = 0;
+                _map.GetTileAt(x, y).Passable = true;
+                _map.GetTileAt(x, y).DirtyRender = true;
             }
-        });
+        }
 
         _aStar = null;
         Running = false;
@@ -303,10 +314,16 @@
         _settingGoal = !_settingGoal;
     }
 
-    private async Task OnTileClicked(MouseEventArgs e)
+    private void OnTileClicked(MouseEventArgs e)
     {
+        if (Running)
+        {
+            return;
+        }
+
         int x = (int)(e.OffsetX / TILE_SIZE);
         int y = (int)(e.OffsetY / TILE_SIZE);
+
 
         if(x < 0 || x > MAP_WIDTH || y < 0 || y > MAP_HEIGHT)
         {
@@ -327,11 +344,12 @@
         {
             _map.GetTileAt(x, y).Passable = !_map.GetTileAt(x, y).Passable;
         }
+        _map.GetTileAt(x, y).DirtyRender = true;
 
         _aStar = null;
     }
 
-    private async Task OnTileHovered(MouseEventArgs e)
+    private void OnTileHovered(MouseEventArgs e)
     {
         int x = (int)(e.OffsetX / TILE_SIZE);
         int y = (int)(e.OffsetY / TILE_SIZE);
@@ -373,6 +391,7 @@
         }
 
         _map.GetTileAt(tileX, tileY).IsHovered = true;
+        _map.GetTileAt(tileX, tileY).DirtyRender = true;
         var args = new MouseEventArgs()
         {
             OffsetX = tileX * TILE_SIZE,
@@ -389,21 +408,23 @@
         }
 
         _map.GetTileAt(tileX, tileY).IsHovered = false;
+        _map.GetTileAt(tileX, tileY).DirtyRender = true;
     }
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        //await System.Runtime.InteropServices.JavaScript.JSHost.ImportAsync("SlashdRun", "https://unpkg.com/@slashd/run");
-        await base.OnInitializedAsync();
+        _map = new World.Map(MAP_WIDTH, MAP_HEIGHT);
+        OnResetClicked();
+
+        base.OnInitialized();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if(firstRender)
         {
-            _map = new World.Map(MAP_WIDTH, MAP_HEIGHT);
+            this._context = await this._canvasReference.CreateCanvas2DAsync();
         }
-        this._context = await this._canvasReference.CreateCanvas2DAsync();
         await Draw();
     }
 
@@ -415,6 +436,11 @@
             for (int y = 0; y < _map.Height; y++)
             {
                 var tile = _map.GetTileAt(x, y);
+                if(!tile.DirtyRender)
+                {
+                    continue;
+                }
+                _map.GetTileAt(x, y).DirtyRender = false;
 
                 if(tile.Passable)
                 {
