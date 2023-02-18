@@ -20,6 +20,12 @@
     <AlertDescription>@ErrorText</AlertDescription>
 </Alert>
 
+<Alert Color="Color.Success" Visible="@GoalReached">
+    <AlertMessage>Goal reached!</AlertMessage>
+    <AlertDescription>The goal has been reached in @_moveCount moves!</AlertDescription>
+</Alert>
+
+
 <div class="container ms-0">
 
     <div class="row">
@@ -79,8 +85,10 @@
     </div>
 
     <div class="row">
-        <button class="btn btn-outline-primary" @onclick="OnRunClicked" disabled="@(!MapLoaded || Running)">Run</button>
-        <button class="btn btn-outline-primary" @onclick="OnStepClicked" disabled="@(!MapLoaded || Running)">Step</button>
+        <div class="col">
+            <button class="btn btn-outline-primary" @onclick="OnRunClicked" disabled="@(!MapLoaded || Running)">Run</button>
+            <button class="btn btn-outline-primary" @onclick="OnStepClicked" disabled="@(!MapLoaded || Running)">Step</button>
+        </div>
     </div>
 
 </div>
@@ -121,6 +129,16 @@
     public int InputRowCount { get; set; } = INPUT_ROWS_NOFOCUS;
     public bool MapLoaded { get; set; } = false;
     public bool Running { get; set; } = false;
+    public bool Solving { get; set; } = false;
+    public int RunDelay { get; set; } = 250;
+    public bool GoalReached
+    {
+        get
+        {
+            return _aStar != null && _aStar.GoalReached;
+        }
+    }
+    private int _moveCount = 0;
     private List<TreeNode<City>> Queue { get; set; } = new List<TreeNode<City>>();
 
 
@@ -168,10 +186,28 @@
         InputRowCount = INPUT_ROWS_NOFOCUS;
     }
 
-    private void OnRunClicked()
+    private async Task OnRunClicked()
     {
+        if (Solving)
+        {
+            Solving = false;
+            return;
+        }
+
+        Solving = true;
         Running = true;
         CheckAStar();
+
+        while (_aStar != null && !_aStar.GoalReached && Solving)
+        {
+            StepAStar();
+            var drawTask = OnDrawSubsequentMap();
+            await Task.Delay(RunDelay);
+            await drawTask;
+        }
+
+        Solving = false;
+        Running = false;
     }
 
     private async Task OnStepClicked()
@@ -289,10 +325,6 @@
             {
                 var targetCity = _loadedCities.First(c => c.Name == neighbor.Name);
 
-                // Figure out if the target city is on the frontier, is next, or has been expanded.
-                // Also need to check the current city in case the relationship goes in the opposite direction.
-
-
                 var color = STYLE_EDGE;
                 if(city.IsExpanded)
                 {
@@ -379,6 +411,8 @@
             next.Data.IsNext = true;
             Queue.Insert(0, next);
         }
+
+        _moveCount++;
     }
 
 
@@ -387,9 +421,16 @@
         await JsRuntime.InvokeAsync<string>("Graphing.render", _renderElement, GraphEngine, dot);
     }
 
-    private void ResetPathing()
+    private void ResetPathing(bool zeroCities = true)
     {
+        _moveCount = 0;
         _aStar = null;
+        Queue.Clear();
+
+        if(!zeroCities)
+        {
+            return;
+        }
 
         foreach (var city in _loadedCities)
         {
@@ -402,8 +443,8 @@
 
     private void ResetMap()
     {
+        ResetPathing(false);
         MapLoaded = false;
-        _aStar = null;
         _graph.Elements.Clear();
         _loadedCities.Clear();
         _startingCity = null;

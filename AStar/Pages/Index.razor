@@ -180,6 +180,9 @@
             StateHasChanged();
             await Task.Delay(RunDelay);
         }
+
+        Solving = false;
+        Running = false;
     }
 
     private void OnStepClicked()
