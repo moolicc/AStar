@@ -51,7 +51,8 @@ namespace Pathing
                 var treeNode = FindNode(childPath.Neighbor) ?? CreateNode(childPath.Neighbor);
                 var edge = new TreeEdge(nodeId, treeNode.NodeId, childPath.Cost);
 
-                if (treeNode.Visited)
+                int pathCost = targetNode.PathCost + edge.Cost;
+                if (treeNode.Visited && pathCost > treeNode.PathCost) 
                 {
                     continue;
                 }

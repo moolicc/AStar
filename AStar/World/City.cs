@@ -20,5 +20,15 @@ namespace AStar.World
             HeuristicCost = heuristicCost;
             Neighbors = new List<(string Name, int Weight)>();
         }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is City c && c.Name == Name;
+        }
+
+        public override int GetHashCode()
+        {
+            return Name.GetHashCode();
+        }
     }
 }

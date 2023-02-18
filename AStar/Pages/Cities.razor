@@ -56,7 +56,7 @@
         
         <div class="col">
             <div class="row">
-                <div class="col-auto">
+                <div class="col-auto ps-0">
                     <label class="form-label mb-0">Graph Engine:</label>
                 </div>
                 <div class="col-2 ps-0 mb-1">
@@ -76,6 +76,9 @@
                 </div>
             </div>
             <div class="row">
+                <label class="p-0">Status: @Status</label>
+            </div>
+            <div class="row mt-3">
                 <InputFile class="form-control" OnChange="@LoadIniFile" accept=".ini"></InputFile>
             </div>
             <div class="row">
@@ -84,11 +87,25 @@
         </div>
     </div>
 
-    <div class="row">
-        <div class="col">
+    <div class="row mt-3">
+        <div class="col-auto ps-0">
+            <select class="form-select" disabled="@Running">
+                <option>A*</option>
+                <!-- <option>GBFS</option> -->
+            </select>
+        </div>
+        <div class="col-auto ps-0">
             <button class="btn btn-outline-primary" @onclick="OnRunClicked" disabled="@(!MapLoaded || Running)">Run</button>
             <button class="btn btn-outline-primary" @onclick="OnStepClicked" disabled="@(!MapLoaded || Running)">Step</button>
         </div>
+        <div class="col-auto">
+            <label class="form-label mb-0">Run Delay:</label>
+        </div>
+        <div class="col-auto ps-0">
+            <input class="form-control w-50" type="number" disabled="@Solving" @bind="RunDelay" />
+        </div>
+    </div>
+    <div class="row mt-1">
     </div>
 
 </div>
@@ -136,6 +153,17 @@
         get
         {
             return _aStar != null && _aStar.GoalReached;
+        }
+    }
+    public string Status
+    {
+        get
+        {
+            if(GoalReached)
+            {
+                return $"Goal found in {_moveCount} moves!";
+            }
+            return $"{_moveCount} moves.";
         }
     }
     private int _moveCount = 0;
@@ -205,6 +233,10 @@
             await Task.Delay(RunDelay);
             await drawTask;
         }
+        if(_aStar != null && _aStar.GoalReached)
+        {
+            await OnDrawSubsequentMap();
+        }
 
         Solving = false;
         Running = false;
@@ -271,6 +303,8 @@
                     return;
                 }
 
+                int cost = int.Parse(setting.Value);
+                neighbors.Add((setting.KeyName, cost));
                 if (_graph.Elements.Any(i =>
                 {
                     if (i is DotEdge edge)
@@ -288,8 +322,6 @@
                 {
                     continue;
                 }
-                int cost = int.Parse(setting.Value);
-                neighbors.Add((setting.KeyName, cost));
 
                 var edge = CreateGraphEdge(section.SectionName, setting.KeyName, cost);
                 _graph.Elements.Add(edge);
@@ -332,10 +364,9 @@
                     {
                         color = STYLE_EDGE_EXPANDED;
                     }
-                    else if(targetCity.IsNext && _goalCity == targetCity)
+                    else if (targetCity.IsNext && _goalCity == targetCity && _aStar != null && _aStar.CurrentState.Expanded.Last().Data == city)
                     {
-                        //color = STYLE_EDGE_GOAL;
-                        color = STYLE_EDGE_NEXT;
+                        color = STYLE_EDGE_GOAL;
                     }
                     else if(targetCity.IsNext)
                     {
@@ -352,10 +383,9 @@
                     {
                         color = STYLE_EDGE_EXPANDED;
                     }
-                    else if (city.IsNext && _goalCity == targetCity)
+                    else if (city.IsNext && _goalCity == city && _aStar != null && _aStar.CurrentState.Expanded.Last().Data == targetCity)
                     {
-                        //color = STYLE_EDGE_GOAL;
-                        color = STYLE_EDGE_NEXT;
+                        color = STYLE_EDGE_GOAL;
                     }
                     else if (city.IsNext)
                     {
@@ -367,6 +397,23 @@
                     }
                 }
 
+                if (_graph.Elements.Any(i =>
+                {
+                    if (i is DotEdge edge)
+                    {
+                        if (edge.Left is DotString left && edge.Right is DotString right)
+                        {
+                            if (left.Value == targetCity.Name && right.Value == city.Name)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                }))
+                {
+                    continue;
+                }
                 var edge = CreateGraphEdge(city.Name, neighbor.Name, neighbor.Weight, color);
                 _graph.Elements.Add(edge);
             }

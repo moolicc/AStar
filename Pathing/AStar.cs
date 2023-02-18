@@ -90,7 +90,7 @@ namespace Pathing
                 {
                     if (item.Element.Data!.Equals(child.Data))
                     {
-                        if(item.Priority >= child.TotalCost)
+                        if(item.Priority < child.TotalCost)
                         {
                             continueUpper = true;
                         }
