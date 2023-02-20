@@ -87,7 +87,7 @@
         <div class="col">
             <div class="row">
                 <div class="col-2 ps-0">
-                    <Button class="btn btn-outline-primary" @onclick="@OnShowIniModal">Configure map</Button>
+                    <Button class="btn btn-outline-primary" @onclick="@OnShowIniModal" disabled="@Running">Configure map</Button>
                 </div>
                 <div class="col-auto ps-0">
                     <label class="form-label mb-0">Graph Engine:</label>
@@ -130,15 +130,15 @@
             </select>
         </div>
         <div class="col-auto ps-0">
-            <button class="btn btn-outline-danger" @onclick="OnResetClicked" disabled="@(!MapLoaded)">Reset</button>
-            <button class="btn btn-outline-primary" @onclick="OnRunClicked" disabled="@(!MapLoaded)">Run</button>
-            <button class="btn btn-outline-secondary" @onclick="OnStepClicked" disabled="@(!MapLoaded || Running)">Step</button>
+            <button class="btn btn-outline-danger" @onclick="OnResetClicked" disabled="@(!MapLoaded || Running)">Reset</button>
+            <button class="btn btn-outline-primary" @onclick="OnRunClicked" disabled="@(!MapLoaded || GoalReached)">Run</button>
+            <button class="btn btn-outline-secondary" @onclick="OnStepClicked" disabled="@(!MapLoaded || Running || GoalReached)">Step</button>
         </div>
         <div class="col-auto">
             <label class="form-label mb-0">Run Delay:</label>
         </div>
         <div class="col-auto ps-0">
-            <input class="form-control w-50" type="number" disabled="@Running" @bind="RunDelay" />
+            <input class="form-control w-50" type="number" disabled="@(Running || GoalReached)" @bind="RunDelay" />
         </div>
     </div>
     <div class="row mt-1">
@@ -280,7 +280,6 @@
         }
         if(_pathing != null && _pathing.GoalReached)
         {
-            Solving = false;
             await OnDrawSubsequentMap();
         }
 

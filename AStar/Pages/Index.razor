@@ -63,14 +63,14 @@
         <div class="col">
             <div class="row">
                 <div class="col">
-                    <button class="btn btn-outline-danger" @onclick="OnResetClicked">Reset</button>
-                    <button class="btn btn-outline-success" @onclick="OnSetStartClicked" disabled="@Solving">Set Start</button>
-                    <button class="btn btn-outline-info" @onclick="OnSetGoalClicked" disabled="@Solving">Set Goal</button>
+                    <button class="btn btn-outline-danger" @onclick="OnResetClicked" disabled="@Running">Reset</button>
+                    <button class="btn btn-outline-success" @onclick="OnSetStartClicked" disabled="@(Solving || GoalReached)">Set Start</button>
+                    <button class="btn btn-outline-info" @onclick="OnSetGoalClicked" disabled="@(Solving || GoalReached)">Set Goal</button>
                 </div>
             </div>
             <div class="row mt-1">
                 <div class="col-auto pe-0">
-                    <select class="form-select" disabled="@Solving" @bind="SelectedAlgorithm">
+                    <select class="form-select" disabled="@(Solving || GoalReached)" @bind="SelectedAlgorithm">
                         @foreach (var alg in _availableAlgorithms)
                         {
                             <option value="@alg.Value">@alg.Key</option>
@@ -78,15 +78,15 @@
                     </select>
                 </div>
                 <div class="col-auto">
-                    <button class="btn btn-outline-danger" @onclick="OnClearPathClicked">Clear Path</button>
-                    <button class="btn btn-outline-primary" @onclick="OnRunClicked">Run</button>
-                    <button class="btn btn-outline-secondary" @onclick="OnStepClicked">Step</button>
+                    <button class="btn btn-outline-danger" @onclick="OnClearPathClicked" disabled="@Running">Clear Path</button>
+                    <button class="btn btn-outline-primary" @onclick="OnRunClicked" disabled="@GoalReached">Run</button>
+                    <button class="btn btn-outline-secondary" @onclick="OnStepClicked" disabled="@(Running || GoalReached)">Step</button>
                 </div>
                 <div class="col-auto">
                     <label class="form-label mb-0">Run Delay:</label>
                 </div>
                 <div class="col-auto ps-0">
-                    <input class="form-control w-50" type="number" disabled="@Running" @bind="RunDelay" />
+                    <input class="form-control w-50" type="number" disabled="@(Running || GoalReached)" @bind="RunDelay" />
                 </div>
             </div>
             <div class="row mt-1">
@@ -94,7 +94,7 @@
                     <label class="form-label">Horizontal movement cost:</label>
                 </div>
                 <div class="col-auto">
-                    <input class="form-control" type="number" disabled="@Solving" @bind="HorizontalCost" />
+                    <input class="form-control" type="number" disabled="@(Solving || GoalReached)" @bind="HorizontalCost" />
                 </div>
             </div>
             <div class="row mt-1">
@@ -102,7 +102,7 @@
                     <label class="form-label">Vertical movement cost:&nbsp;&nbsp;&nbsp;&nbsp;</label>
                 </div>
                 <div class="col-auto">
-                    <input class="form-control" type="number" disabled="@Solving" @bind="VerticalCost" />
+                    <input class="form-control" type="number" disabled="@(Solving || GoalReached)" @bind="VerticalCost" />
                 </div>
             </div>
         </div>
