@@ -78,6 +78,7 @@
                     </select>
                 </div>
                 <div class="col-auto">
+                    <button class="btn btn-outline-danger" @onclick="OnClearPathClicked">Clear Path</button>
                     <button class="btn btn-outline-primary" @onclick="OnRunClicked">Run</button>
                     <button class="btn btn-outline-secondary" @onclick="OnStepClicked">Step</button>
                 </div>
@@ -178,6 +179,29 @@
 
     private StringBuilder _informationBuilder = new StringBuilder();
 
+    private void OnClearPathClicked()
+    {
+        Queue.Clear();
+        Status = "";
+        _moveCount = 0;
+
+
+        for (int x = 0; x < _map.Width; x++)
+        {
+            for (int y = 0; y < _map.Height; y++)
+            {
+                _map.GetTileAt(x, y).OnFrontier = false;
+                _map.GetTileAt(x, y).IsExpanded = false;
+                _map.GetTileAt(x, y).IsNext = false;
+                _map.GetTileAt(x, y).TotalCost = 0;
+                _map.GetTileAt(x, y).HeuristicCost = 0;
+                _map.GetTileAt(x, y).DirtyRender = true;
+            }
+        }
+
+        _pathing = null;
+        Solving = false;
+    }
 
     private async Task OnRunClicked()
     {
