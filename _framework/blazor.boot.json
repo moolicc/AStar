@@ -7,7 +7,7 @@
   "linkerEnabled": true,
   "resources": {
     "assembly": {
-      "AStar.dll": "sha256-SmHXlDTNDxwmxeOXmuSfDE2xVuCFdkzmJ5tSi1RHktY=",
+      "AStar.dll": "sha256-PMFmhiR3liWi+RTN2sPuZX82LMd5Pl7exfYtCg\/a4CE=",
       "Blazor.Diagrams.Core.dll": "sha256-lr5zpZAt\/HD1SYDyDMOfuyB9oaQogWgwUsV756ElyaM=",
       "Blazor.Diagrams.dll": "sha256-SZXAEDYNazrsz+Dt1cnhHjZmk4sh8Mvgfb6IeJrhX9o=",
       "Blazor.Extensions.Canvas.dll": "sha256-W20pWMXQg2yTv0w4VJhrjCJKNRYe3PiUU9S76XipNe8=",
