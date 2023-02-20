@@ -13,7 +13,7 @@
 
 <Alert Color="Color.Success" Visible="@GoalReached">
     <AlertMessage>Goal reached!</AlertMessage>
-    <AlertDescription>The goal has been reached in @_moveCount moves!</AlertDescription>
+    <AlertDescription>The goal has been reached in @_moveCount moves! Total path cost: @_pathing?.CurrentState.Next?.PathCost</AlertDescription>
 </Alert>
 
 <div class="container ms-0">
@@ -33,7 +33,15 @@
                 }
                 <span @onmouseenter="() => OnQueueItemEnter(queueItem.Data.X, queueItem.Data.Y)" @onmouseleave="() => OnQueueItemLeave(queueItem.Data.X, queueItem.Data.Y)">
                     <label>(@queueItem.Data.X, @queueItem.Data.Y) f: @queueItem.TotalCost</label>
-                    <small>&nbsp;&nbsp;<i>g: @queueItem.PathCost + h: @queueItem.HeuristicCost</i></small>
+
+                    @if(SelectedAlgorithm == Algorithms.AStar)
+                    {
+                        <small>&nbsp;&nbsp;<i>g: @queueItem.PathCost + h: @queueItem.HeuristicCost</i></small>
+                    }
+                    else if(SelectedAlgorithm == Algorithms.GBFS)
+                    {
+                        <small>&nbsp;&nbsp;<i>h: @queueItem.HeuristicCost</i></small>
+                    }
                 </span>
                 <br />
                 i++;
@@ -55,27 +63,29 @@
         <div class="col">
             <div class="row">
                 <div class="col">
-                    <button class="btn btn-outline-primary" @onclick="OnResetClicked">Reset</button>
-                    <button class="btn btn-outline-primary" @onclick="OnSetStartClicked" disabled="@Running">Set Start</button>
-                    <button class="btn btn-outline-primary" @onclick="OnSetGoalClicked" disabled="@Running">Set Goal</button>
+                    <button class="btn btn-outline-danger" @onclick="OnResetClicked">Reset</button>
+                    <button class="btn btn-outline-success" @onclick="OnSetStartClicked" disabled="@Solving">Set Start</button>
+                    <button class="btn btn-outline-info" @onclick="OnSetGoalClicked" disabled="@Solving">Set Goal</button>
                 </div>
             </div>
             <div class="row mt-1">
                 <div class="col-auto pe-0">
-                    <select class="form-select" disabled="@Running">
-                        <option>A*</option>
-                        <!-- <option>GBFS</option> -->
+                    <select class="form-select" disabled="@Solving" @bind="SelectedAlgorithm">
+                        @foreach (var alg in _availableAlgorithms)
+                        {
+                            <option value="@alg.Value">@alg.Key</option>
+                        }
                     </select>
                 </div>
                 <div class="col-auto">
                     <button class="btn btn-outline-primary" @onclick="OnRunClicked">Run</button>
-                    <button class="btn btn-outline-primary" @onclick="OnStepClicked">Step</button>
+                    <button class="btn btn-outline-secondary" @onclick="OnStepClicked">Step</button>
                 </div>
                 <div class="col-auto">
                     <label class="form-label mb-0">Run Delay:</label>
                 </div>
                 <div class="col-auto ps-0">
-                    <input class="form-control w-50" type="number" disabled="@Solving" @bind="RunDelay" />
+                    <input class="form-control w-50" type="number" disabled="@Running" @bind="RunDelay" />
                 </div>
             </div>
             <div class="row mt-1">
@@ -83,7 +93,7 @@
                     <label class="form-label">Horizontal movement cost:</label>
                 </div>
                 <div class="col-auto">
-                    <input class="form-control" type="number" disabled="@Running" @bind="HorizontalCost" />
+                    <input class="form-control" type="number" disabled="@Solving" @bind="HorizontalCost" />
                 </div>
             </div>
             <div class="row mt-1">
@@ -91,7 +101,7 @@
                     <label class="form-label">Vertical movement cost:&nbsp;&nbsp;&nbsp;&nbsp;</label>
                 </div>
                 <div class="col-auto">
-                    <input class="form-control" type="number" disabled="@Running" @bind="VerticalCost" />
+                    <input class="form-control" type="number" disabled="@Solving" @bind="VerticalCost" />
                 </div>
             </div>
         </div>
@@ -133,11 +143,11 @@
     public string Status { get; set; } = "";
     public bool GoalReached 
     {
-        get => _aStar != null && _aStar.GoalReached;
+        get => _pathing != null && _pathing.GoalReached;
         set { }
     }
-    public bool Running { get; set; } = false;
     public bool Solving { get; set; } = false;
+    public bool Running { get; set; } = false;
     public int RunDelay { get; set; } = 250;
     public int HorizontalCost { get; set; } = 4;
     public int VerticalCost { get; set; } = 3;
@@ -145,6 +155,7 @@
     """"
     Math.abs(refTile.X - goalTile.X) + Math.abs(refTile.Y - goalTile.Y);
     """";
+    public Algorithms SelectedAlgorithm { get; set; } = Algorithms.AStar;
 
     private int _moveCount;
 
@@ -157,44 +168,54 @@
     private (int x, int y) _start = (-1, -1);
     private (int x, int y) _goal = (-1, -1);
 
-    private Pathing.AStar<World.Tile>? _aStar;
+    // This is just for populating the select box with options.
+    private Dictionary<string, Algorithms> _availableAlgorithms = new Dictionary<string, Algorithms>
+    {
+        { "A*", Algorithms.AStar },
+        { "GBFS", Algorithms.GBFS }
+    };
+    private Pathing.PathAlgorithm<World.Tile>? _pathing;
 
     private StringBuilder _informationBuilder = new StringBuilder();
 
 
     private async Task OnRunClicked()
     {
-        if(Solving)
+        if(Running)
         {
-            Solving = false;
+            Running = false;
             return;
         }
 
-        Solving = true;
         Running = true;
+        Solving = true;
         RecreateAStar();
 
-        while (_aStar != null && !_aStar.GoalReached && Solving)
+        while (_pathing != null && !_pathing.GoalReached && Running)
         {
             StepAStar();
             StateHasChanged();
             await Task.Delay(RunDelay);
         }
 
-        Solving = false;
         Running = false;
+
+        if(_pathing == null || _pathing.GoalReached)
+        {
+            Solving = false;
+        }
     }
 
     private void OnStepClicked()
     {
-        Running = true;
+        Solving = true;
         RecreateAStar();
         StepAStar();
     }
 
     private void RecreateAStar()
     {
-        if(_aStar == null && _start.x != -1 && _start.y != -1 && _goal.x != -1 && _goal.y != -1)
+        if(_pathing == null && _start.x != -1 && _start.y != -1 && _goal.x != -1 && _goal.y != -1)
         {
             string source = JSHeuristicFunction;
             HeuristicFunction<Tile> heuristic = new HeuristicFunction<Tile>((r, g) =>
@@ -207,33 +228,33 @@
                 return 0;
                 //return result;
             });
-            _aStar = new Pathing.AStar<World.Tile>(_map.Heuristic, t => _map.ExpandTile(t, HorizontalCost, VerticalCost), _map.GetTileAt(_start.x, _start.y), _map.GetTileAt(_goal.x, _goal.y));
+            _pathing = SelectedAlgorithm.CreatePathing(_map.Heuristic, t => _map.ExpandTile(t, HorizontalCost, VerticalCost), _map.GetTileAt(_start.x, _start.y), _map.GetTileAt(_goal.x, _goal.y));
         }
     }
 
     private void StepAStar()
     {
-        if(_aStar == null || _aStar.GoalReached)
+        if(_pathing == null || _pathing.GoalReached)
         {
             return;
         }
 
         // Clear UI state from previous step
-        var nextTile = _aStar.CurrentState.Next;
+        var nextTile = _pathing.CurrentState.Next;
         if(nextTile != null)
         {
             _map.GetTileAt(nextTile.Data.X, nextTile.Data.Y).IsNext = false;
             _map.GetTileAt(nextTile.Data.X, nextTile.Data.Y).DirtyRender = true;
         }
 
-        foreach (var frontierItem in _aStar.CurrentState.PriorityQueue.UnorderedItems)
+        foreach (var frontierItem in _pathing.CurrentState.PriorityQueue.UnorderedItems)
         {
             var tile = frontierItem.Element.Data;
             _map.GetTileAt(tile.X, tile.Y).OnFrontier = false;
             _map.GetTileAt(tile.X, tile.Y).DirtyRender = true;
         }
 
-        foreach (var expandedItem in _aStar.CurrentState.Expanded)
+        foreach (var expandedItem in _pathing.CurrentState.Expanded)
         {
             var tile = expandedItem.Data;
             _map.GetTileAt(tile.X, tile.Y).IsExpanded = false;
@@ -241,12 +262,12 @@
         }
 
         // Step
-        _aStar.Step();
+        _pathing.Step();
 
         // Set UI state from latest step
 
         Queue.Clear();
-        foreach (var frontierItem in _aStar.CurrentState.PriorityQueue.UnorderedItems.OrderBy(n => n.Priority))
+        foreach (var frontierItem in _pathing.CurrentState.PriorityQueue.UnorderedItems.OrderBy(n => n.Priority))
         {
             var tile = frontierItem.Element.Data;
             _map.GetTileAt(tile.X, tile.Y).OnFrontier = true;
@@ -255,17 +276,16 @@
             Queue.Add(frontierItem.Element);
         }
 
-        nextTile = _aStar.CurrentState.Next;
+        nextTile = _pathing.CurrentState.Next;
         if(nextTile != null)
         {
             _map.GetTileAt(nextTile.Data.X, nextTile.Data.Y).IsNext = true;
             _map.GetTileAt(nextTile.Data.X, nextTile.Data.Y).DirtyRender = true;
-
             Queue.Insert(0, nextTile);
         }
 
 
-        foreach (var expandedItem in _aStar.CurrentState.Expanded)
+        foreach (var expandedItem in _pathing.CurrentState.Expanded)
         {
             var tile = expandedItem.Data;
             _map.GetTileAt(tile.X, tile.Y).IsExpanded = true;
@@ -273,16 +293,16 @@
         }
 
 
-        foreach(var node in _aStar.SearchTree.Nodes)
+        foreach(var node in _pathing.SearchTree.Nodes)
         {
             _map.GetTileAt(node.Data.X, node.Data.Y).HeuristicCost = node.HeuristicCost;
             _map.GetTileAt(node.Data.X, node.Data.Y).TotalCost = node.TotalCost;
         }
 
         _moveCount++;
-        if(_aStar.GoalReached)
+        if(_pathing.GoalReached)
         {
-            Status = $"Goal found in {_moveCount} moves!";
+            Status = $"Goal found in {_moveCount} moves! Total path cost: {_pathing?.CurrentState.Next?.PathCost ?? -1}";
         }
         else
         {
@@ -314,8 +334,8 @@
             }
         }
 
-        _aStar = null;
-        Running = false;
+        _pathing = null;
+        Solving = false;
     }
 
     private void OnSetStartClicked()
@@ -330,7 +350,7 @@
 
     private void OnTileClicked(MouseEventArgs e)
     {
-        if (Running)
+        if (Solving)
         {
             return;
         }
@@ -368,7 +388,7 @@
         }
         _map.GetTileAt(x, y).DirtyRender = true;
 
-        _aStar = null;
+        _pathing = null;
     }
 
     private void OnTileHovered(MouseEventArgs e)

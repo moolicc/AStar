@@ -15,6 +15,29 @@
 <PageTitle>Cities</PageTitle>
 
 
+<Modal @ref="_iniModal">
+    <ModalContent Centered>
+        <ModalHeader>
+            <ModalTitle>Map configuration</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <Field>
+                <FieldLabel>File upload</FieldLabel>
+                <InputFile class="form-control" OnChange="@LoadIniFile" accept=".ini"></InputFile>
+            </Field>
+            <Field>
+                <FieldLabel>Source</FieldLabel>
+                <textarea class="form-control form-text" rows="@InputRowCount" @onfocusin="OnInputFocus" @onfocusout="OnInputLostFocus" @bind="@IniText"></textarea>
+            </Field>
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="@(async () => await OnHideIniModal(false))">Close</Button>
+            <Button Color="Color.Primary" Clicked="@(async () => await OnHideIniModal(true))">Save Changes</Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
 <Alert Color="Color.Danger" Visible="@ErrorVisible">
     <AlertMessage>Error</AlertMessage>
     <AlertDescription>@ErrorText</AlertDescription>
@@ -22,7 +45,7 @@
 
 <Alert Color="Color.Success" Visible="@GoalReached">
     <AlertMessage>Goal reached!</AlertMessage>
-    <AlertDescription>The goal has been reached in @_moveCount moves!</AlertDescription>
+    <AlertDescription>The goal has been reached in @_moveCount moves! Total path cost: @_pathing?.CurrentState.Next?.PathCost</AlertDescription>
 </Alert>
 
 
@@ -44,7 +67,14 @@
                         <label></label>
                     }
                     <label>@queueItem.Data.Name f: @queueItem.TotalCost</label>
-                    <small>&nbsp;&nbsp;<i>g: @queueItem.PathCost + h: @queueItem.HeuristicCost</i></small>
+                    @if (SelectedAlgorithm == Algorithms.AStar)
+                    {
+                        <small>&nbsp;&nbsp;<i>g: @queueItem.PathCost + h: @queueItem.HeuristicCost</i></small>
+                    }
+                    else if (SelectedAlgorithm == Algorithms.GBFS)
+                    {
+                        <small>&nbsp;&nbsp;<i>h: @queueItem.HeuristicCost</i></small>
+                    }
                 </span>
                 <br />
                 i++;
@@ -56,6 +86,9 @@
         
         <div class="col">
             <div class="row">
+                <div class="col-2 ps-0">
+                    <Button class="btn btn-outline-primary" @onclick="@OnShowIniModal">Configure map</Button>
+                </div>
                 <div class="col-auto ps-0">
                     <label class="form-label mb-0">Graph Engine:</label>
                 </div>
@@ -71,44 +104,45 @@
                         <option value="twopi">twopi</option>
                     </select>
                 </div>
-                <div class="col-2 ps-0">
-                    <Button class="btn btn-outline-primary" @onclick="@OnDrawInitialMap">Draw map</Button>
+                <div class="col-auto ps-0">
+                    <Button class="btn btn-outline-primary" @onclick="@OnDrawSubsequentMap" disabled="@(!MapLoaded)">Draw map</Button>
                 </div>
                 <div class="col">
                     <a href="https://github.com/magjac/d3-graphviz"><small><i>Uses d3-graphviz for graphing algorithms</i></small></a>
                 </div>
             </div>
-            <div class="row">
-                <label class="p-0">Status: @Status</label>
-            </div>
-            <div class="row mt-3">
+@*            <div class="row mt-3">
                 <InputFile class="form-control" OnChange="@LoadIniFile" accept=".ini"></InputFile>
             </div>
             <div class="row">
                 <textarea class="form-text" rows="@InputRowCount" @onfocusin="OnInputFocus" @onfocusout="OnInputLostFocus" @bind="@IniText"></textarea>
-            </div>
+            </div>*@
         </div>
     </div>
 
     <div class="row mt-3">
         <div class="col-auto ps-0">
-            <select class="form-select" disabled="@Running">
-                <option>A*</option>
-                <!-- <option>GBFS</option> -->
+            <select class="form-select" disabled="@Solving" @bind="SelectedAlgorithm">
+                @foreach (var alg in _availableAlgorithms)
+                {
+                    <option value="@alg.Value">@alg.Key</option>
+                }
             </select>
         </div>
         <div class="col-auto ps-0">
-            <button class="btn btn-outline-primary" @onclick="OnRunClicked" disabled="@(!MapLoaded || Running)">Run</button>
-            <button class="btn btn-outline-primary" @onclick="OnStepClicked" disabled="@(!MapLoaded || Running)">Step</button>
+            <button class="btn btn-outline-danger" @onclick="OnResetClicked" disabled="@(!MapLoaded)">Reset</button>
+            <button class="btn btn-outline-primary" @onclick="OnRunClicked" disabled="@(!MapLoaded)">Run</button>
+            <button class="btn btn-outline-secondary" @onclick="OnStepClicked" disabled="@(!MapLoaded || Running)">Step</button>
         </div>
         <div class="col-auto">
             <label class="form-label mb-0">Run Delay:</label>
         </div>
         <div class="col-auto ps-0">
-            <input class="form-control w-50" type="number" disabled="@Solving" @bind="RunDelay" />
+            <input class="form-control w-50" type="number" disabled="@Running" @bind="RunDelay" />
         </div>
     </div>
     <div class="row mt-1">
+        <label class="p-0">Status: @Status</label>
     </div>
 
 </div>
@@ -140,8 +174,7 @@
     private static readonly GdiColor STYLE_EDGE_GOAL = GdiColor.CornflowerBlue;
 
     private const int INPUT_ROWS_FOCUS = 25;
-    private const int INPUT_ROWS_NOFOCUS = 1;
-
+    private const int INPUT_ROWS_NOFOCUS = 25; //1;
 
     public bool ErrorVisible { get; set; } = false;
     public string ErrorText { get; set; } = "";
@@ -155,7 +188,7 @@
     {
         get
         {
-            return _aStar != null && _aStar.GoalReached;
+            return _pathing != null && _pathing.GoalReached;
         }
     }
     public string Status
@@ -164,15 +197,18 @@
         {
             if(GoalReached)
             {
-                return $"Goal found in {_moveCount} moves!";
+                return $"Goal found in {_moveCount} moves! Total path cost: {_pathing?.CurrentState.Next?.PathCost ?? -1}";
             }
             return $"{_moveCount} moves.";
         }
     }
+    public Algorithms SelectedAlgorithm { get; set; } = Algorithms.AStar;
+
     private int _moveCount = 0;
     private List<TreeNode<City>> Queue { get; set; } = new List<TreeNode<City>>();
 
 
+    private Modal? _iniModal;
     private DotGraph _graph = new DotGraph("Map", true);
     private ElementReference _renderElement;
 
@@ -181,7 +217,13 @@
 
     private List<City> _loadedCities = new List<City>();
 
-    private AStar<City>? _aStar;
+    // This is just for populating the select box with options.
+    private Dictionary<string, Algorithms> _availableAlgorithms = new Dictionary<string, Algorithms>
+    {
+        { "A*", Algorithms.AStar },
+        { "GBFS", Algorithms.GBFS }
+    };
+    private PathAlgorithm<City>? _pathing;
 
 
     private async Task LoadIniFile(InputFileChangeEventArgs e)
@@ -219,9 +261,9 @@
 
     private async Task OnRunClicked()
     {
-        if (Solving)
+        if (Running)
         {
-            Solving = false;
+            Running = false;
             return;
         }
 
@@ -229,29 +271,56 @@
         Running = true;
         CheckAStar();
 
-        while (_aStar != null && !_aStar.GoalReached && Solving)
+        while (_pathing != null && !_pathing.GoalReached && Running)
         {
             StepAStar();
             var drawTask = OnDrawSubsequentMap();
             await Task.Delay(RunDelay);
             await drawTask;
         }
-        if(_aStar != null && _aStar.GoalReached)
+        if(_pathing != null && _pathing.GoalReached)
         {
+            Solving = false;
             await OnDrawSubsequentMap();
         }
 
-        Solving = false;
         Running = false;
     }
 
     private async Task OnStepClicked()
     {
+        Solving = true;
         Running = true;
         CheckAStar();
         StepAStar();
         await OnDrawSubsequentMap();
         Running = false;
+    }
+
+    private async Task OnResetClicked()
+    {
+        ResetPathing();
+        await OnDrawSubsequentMap();
+    }
+
+    private async Task OnShowIniModal()
+    {
+        _storedIniText = IniText;
+        await _iniModal!.Show();
+    }
+
+    private async Task OnHideIniModal(bool save)
+    {
+        if(save)
+        {
+            await OnDrawInitialMap();
+        }
+        else
+        {
+            IniText = _storedIniText;
+        }
+        _storedIniText = string.Empty;
+        await _iniModal!.Hide();
     }
 
     private void ParseIniToGraph()
@@ -367,7 +436,7 @@
                     {
                         color = STYLE_EDGE_EXPANDED;
                     }
-                    else if (targetCity.IsNext && _goalCity == targetCity && _aStar != null && _aStar.CurrentState.Expanded.Last().Data == city)
+                    else if (targetCity.IsNext && _goalCity == targetCity && _pathing != null && _pathing.CurrentState.Expanded.Last().Data == city)
                     {
                         color = STYLE_EDGE_GOAL;
                     }
@@ -386,7 +455,7 @@
                     {
                         color = STYLE_EDGE_EXPANDED;
                     }
-                    else if (city.IsNext && _goalCity == city && _aStar != null && _aStar.CurrentState.Expanded.Last().Data == targetCity)
+                    else if (city.IsNext && _goalCity == city && _pathing != null && _pathing.CurrentState.Expanded.Last().Data == targetCity)
                     {
                         color = STYLE_EDGE_GOAL;
                     }
@@ -425,7 +494,7 @@
 
     private void StepAStar()
     {
-        if(_aStar == null || _aStar.GoalReached)
+        if(_pathing == null || _pathing.GoalReached)
         {
             return;
         }
@@ -440,22 +509,22 @@
         }
 
         // Perform an iteration.
-        _aStar.Step();
+        _pathing.Step();
 
 
         // Setup new UI state.
-        foreach (var frontier in _aStar.CurrentState.PriorityQueue.UnorderedItems.OrderBy(n => n.Priority))
+        foreach (var frontier in _pathing.CurrentState.PriorityQueue.UnorderedItems.OrderBy(n => n.Priority))
         {
             frontier.Element.Data.OnFrontier = true;
             Queue.Add(frontier.Element);
         }
 
-        foreach (var expanded in _aStar.CurrentState.Expanded)
+        foreach (var expanded in _pathing.CurrentState.Expanded)
         {
             expanded.Data.IsExpanded = true;
         }
 
-        var next = _aStar.CurrentState.Next;
+        var next = _pathing.CurrentState.Next;
         if(next != null)
         {
             next.Data.IsNext = true;
@@ -466,6 +535,14 @@
     }
 
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if(firstRender)
+        {
+            await OnDrawInitialMap();
+        }
+    }
+
     private async Task RenderDotAsync(string dot)
     {
         await JsRuntime.InvokeAsync<string>("Graphing.render", _renderElement, GraphEngine, dot);
@@ -474,8 +551,9 @@
     private void ResetPathing(bool zeroCities = true)
     {
         _moveCount = 0;
-        _aStar = null;
+        _pathing = null;
         Queue.Clear();
+        Solving = false;
 
         if(!zeroCities)
         {
@@ -573,9 +651,9 @@
 
     private void CheckAStar()
     {
-        if (_aStar == null)
+        if (_pathing == null)
         {
-            _aStar = new AStar<City>(HeuristicFunction, ExpanderFunction, _startingCity!, _goalCity!);
+            _pathing = SelectedAlgorithm.CreatePathing(HeuristicFunction, ExpanderFunction, _startingCity!, _goalCity!);
         }
     }
 
@@ -603,6 +681,7 @@
         });
     }
 
+    private string _storedIniText = "";
     public string IniText { get; set; } =
     """"
 goal=Bucharest

@@ -13,9 +13,9 @@
         public int PathCost { get; set; }
 
         /// <summary>
-        /// The total cost for this node as determined by the formula PathCost + HeuristicCost
+        /// The total cost for this node as determined by the Pathing Algorithm in use.
         /// </summary>
-        public int TotalCost => HeuristicCost + PathCost;
+        public int TotalCost { get; set; }
 
         public bool Visited { get; set; }
         public bool IsGoal { get; set; }
